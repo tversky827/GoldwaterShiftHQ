@@ -32,7 +32,7 @@ Every error on the dashboard is written in plain English. Find it below. Still s
 | Message | Meaning | Fix |
 |---|---|---|
 | "The address … could not be found" | Wrong `AOD_HOSTNAME` | Copy the host from your AOD login page's address bar (Step 3 of the AOD guide) |
-| Connection times out | Port 8192 blocked by your network, or AOD requires IP allow-listing | Ask IT whether outbound port 8192 is allowed; ask AOD whether allow-listing is needed |
+| Connection times out | AOD requires IP allow-listing, or an old port setting | Make sure `AOD_PORT` is 443 (or blank); ask AOD whether allow-listing is needed |
 | 401 | Wrong Access Account or password, or the account is on a different database | Re-check credentials with AOD; confirm test vs production database |
 | "AOD punch extraction is not enabled yet…" | Expected: we're waiting for AOD to confirm the method | Use `AOD_MODE=file` with an export meanwhile |
 | "no employee number/badge column found" | The export columns differ from expected | Send Claude the header row (column names only) |

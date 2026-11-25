@@ -7,7 +7,7 @@
 **Publicly documented by AOD** (their web-services site, `attendanceondemand.com/webservices`):
 - AOD has **Web Services** ("Client Contract 1", CC1) using SOAP, an older XML-based API style.
 - Calls require an AOD **Access Account** (a login meant for software) using a username and password.
-- HTTPS only, on **port 8192**.
+- HTTPS only. AOD's current documentation (and Goldwater's own connection definition) use the **standard port 443**; older material mentioned port 8192.
 - Your company is identified by its **AOD web address** (the part before `.attendanceondemand.com`, or a similar host).
 - AOD recommends testing against a **development/test database**.
 - Documentation sections exist for Employees, Time & Labor (punches, hours for payroll), Scheduling, and more.

@@ -57,7 +57,7 @@ export function getAodConfig() {
     mode: m,
     environment: m === "demo" ? ("mock" as const) : m === "file" ? ("file" as const) : env("AOD_ENVIRONMENT") === "production" ? ("production" as const) : ("test" as const),
     hostname: env("AOD_HOSTNAME")?.replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
-    port: Number(env("AOD_PORT") ?? 8192),
+    port: Number(env("AOD_PORT") ?? 443),
     accessAccount: env("AOD_ACCESS_ACCOUNT"),
     accessPassword: env("AOD_ACCESS_PASSWORD"),
     exportDir: env("AOD_EXPORT_DIR") ?? "./data/aod-exports",

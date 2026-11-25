@@ -5,7 +5,15 @@
  *   - CC1 is SOAP with a WSDL description.
  *   - The WSDL can be read without credentials; method calls need a valid
  *     AOD "Access Account" + password via HTTP Basic Authentication.
- *   - HTTPS only, on port 8192.
+ *   - HTTPS only. Current documentation (and Goldwater's own WSDL, read
+ *     2026-11-25) use the standard port 443; older material said 8192.
+ *   - RPC/encoded SOAP, namespace urn:AeXMLBridgeIntf-IAeXMLBridge, soapAction
+ *     "urn:AeXMLBridgeIntf-IAeXMLBridge#<method>". Goldwater's account offers
+ *     332 methods, including getAllEmployeesList (TAeEmployeeBasic: EmpID,
+ *     Badge, Filekey, ActiveStatus, DateOfHire, WG1-7, WGDescr) and
+ *     extractRangedTransactionsUsingHyperQuery(HyperQueryName, DateRangeEnum,
+ *     MinDate, MaxDate) -> TAeEmpTransaction (employee + TimeStamp, Station,
+ *     TransType); getHyperQueriesSimple lists the HyperQuery names.
  *   - Your company is identified by the sub-domain (host name) of the URL.
  *   - WSDL path:      /cc1.aew/wsdl/IAeXMLBridge
  *   - SOAP endpoint:  /cc1exec.aew/soap/IAeXMLBridge

@@ -102,9 +102,9 @@ Being honest about this matters. Nothing below was invented, but some details co
 | Sandbox API host `https://apis-sandbox.paycor.com` (production `https://apis.paycor.com`); sandbox activation page on `hcm-demo.paycor.com` | Paycor developer guides | **Verified** |
 | Endpoint paths, field names and Data Access names for legal entity, employees, departments and pay rates | Paycor's published OpenAPI specification (v1) | **Verified**; the app now asks for status, dates, position and work location explicitly (`include=`) and reads pay rates per legal entity |
 | How Goldwater uses Paycor's employee "type" (Regular, Variable, Casual…) | Depends on your Paycor setup | **Confirm**: the app treats "Casual" as PRN |
-| AOD offers SOAP "web services" (CC1) using an AOD Access Account, HTTPS port 8192, company identified by web address | AOD public web-services docs | Confirm with AOD |
+| AOD offers SOAP "web services" (CC1) using an AOD Access Account over HTTPS (port 443), company identified by web address | AOD web-services docs and Goldwater's WSDL (2026-11-25) | **Verified** |
 | Goldwater's AOD web address is `goldwater.attendanceondemand.com` (employee self-service at `/ess/`) | Reached it on 2026-11-25 | **Verified** |
-| Port 8192 on that host | Connection reset from our cloud environment on 2026-11-25 | **Ask AOD** whether it's the right port and whether they allow-list IP addresses |
+| Port | AOD now uses 443; Goldwater's WSDL loads on 443 | **Verified** (8192 is no longer needed) |
 | Exact AOD methods for pulling punches/employees for *your* account | Not found publicly | **Ask AOD** (email template provided) |
 | AOD scheduled export / SFTP availability for your account | Not confirmed | **Ask AOD** |
 
