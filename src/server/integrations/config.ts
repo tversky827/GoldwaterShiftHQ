@@ -61,6 +61,10 @@ export function getAodConfig() {
     accessAccount: env("AOD_ACCESS_ACCOUNT"),
     accessPassword: env("AOD_ACCESS_PASSWORD"),
     exportDir: env("AOD_EXPORT_DIR") ?? "./data/aod-exports",
+    /** Name of the AOD saved employee list (HyperQuery) that covers everyone; blank = pick automatically. */
+    hyperQuery: env("AOD_HYPERQUERY"),
+    /** Time zone of AOD timestamps (the AOD company's time zone). Goldwater is in Illinois. */
+    timeZone: env("AOD_TIMEZONE") ?? "America/Chicago",
   };
 }
 export type AodConfig = ReturnType<typeof getAodConfig>;

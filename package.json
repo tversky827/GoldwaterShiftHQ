@@ -16,7 +16,8 @@
     "bootstrap": "tsx scripts/bootstrap.mts",
     "test:pg": "node scripts/test-pg.mjs",
     "db:app-role": "tsx scripts/db-app-role.mts",
-    "qa:mobile": "node scripts/qa-mobile.cjs"
+    "qa:mobile": "node scripts/qa-mobile.cjs",
+    "aod:test": "tsx scripts/aod-test.mts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.6.0",
@@ -32,6 +33,7 @@
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.4",
     "exceljs": "^4.4.0",
+    "fast-xml-parser": "^5.12.1",
     "lucide-react": "^1.80.0",
     "next": "^15.5.29",
     "nodemailer": "^10.6.1",

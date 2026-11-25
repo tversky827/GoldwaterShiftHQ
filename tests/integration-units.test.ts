@@ -155,6 +155,6 @@ describe("Attendance on Demand parsing", () => {
   });
   it("lists WSDL operations and escapes SOAP values", () => {
     expect(parseWsdlOperations('<operation name="getEmployee"/><wsdl:operation name="punchEmployeeNowByIDNum">')).toEqual(["getEmployee", "punchEmployeeNowByIDNum"]);
-    expect(buildSoapEnvelope("m", { a: "<x&>" })).toContain("<a>&lt;x&amp;&gt;</a>");
+    expect(buildSoapEnvelope("m", { a: "<x&>" })).toContain('<a xsi:type="xsd:string">&lt;x&amp;&gt;</a>');
   });
 });
