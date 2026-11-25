@@ -6,7 +6,8 @@ import { getDb } from "@/db";
 import { timezoneShort } from "@/lib/format";
 import { requirePermission } from "@/server/context";
 import { facilityOverview } from "@/server/overview";
-import { hasOrgWide } from "@/server/rbac/access";
+import { weekAtAGlance } from "@/server/reports";
+import { can, hasOrgWide } from "@/server/rbac/access";
 
 export const metadata = { title: "Overview" };
 export const dynamic = "force-dynamic";
@@ -15,7 +16,8 @@ const n = (v: number) => v.toLocaleString("en-US");
 
 export default async function OverviewPage() {
   const actor = await requirePermission("facilities.view");
-  const { facilities, totals } = await facilityOverview(await getDb(), actor);
+  const db = await getDb();
+  const [{ facilities, totals }, week] = await Promise.all([facilityOverview(db, actor), can(actor, "reports.view") ? weekAtAGlance(db, actor) : Promise.resolve(null)]);
   const corporate = hasOrgWide(actor, "facilities.view");
 
   return (
@@ -40,6 +42,43 @@ export default async function OverviewPage() {
           <Stat label="Budgeted hours / week" value={n(totals.budgetedWeeklyHours)} hint="Budget" />
           <Stat label="Actual hours, last 7 days" value={n(totals.actualHoursLast7)} hint="Actual · from timekeeping" />
         </div>
+      )}
+
+      {week && (
+        <Link href="/reports?preset=this_week" className="group mb-8 block rounded-2xl border border-black/[0.04] bg-surface p-5 shadow-card transition-shadow hover:shadow-pop">
+          <div className="flex items-center justify-between">
+            <div className="text-[15px] font-semibold">This week</div>
+            <span className="inline-flex items-center gap-1 text-[13px] font-medium text-accent">
+              Reports <ArrowUpRight className="size-4" />
+            </span>
+          </div>
+          <dl className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div>
+              <dt className="text-[12px] text-faint">Openings filled</dt>
+              <dd className="tabular mt-0.5 text-[22px] font-semibold">{week.totals.fillRate === null ? "—" : `${week.totals.fillRate}%`}</dd>
+              <dd className="text-[12px] text-muted">
+                {n(week.totals.requiredSlots - week.totals.filledSlots)} still open
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[12px] text-faint">Scheduled vs budget</dt>
+              <dd className="tabular mt-0.5 text-[22px] font-semibold">{week.totals.scheduledVsBudget === null ? "—" : `${week.totals.scheduledVsBudget}%`}</dd>
+              <dd className="text-[12px] text-muted">
+                {n(week.totals.scheduledHours)} of {n(week.totals.budgetHoursScheduledFacilities)} h{week.totals.facilitiesScheduled < week.totals.facilitiesTotal ? ` · ${week.totals.facilitiesScheduled} of ${week.totals.facilitiesTotal} facilities scheduled` : ""}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[12px] text-faint">Projected overtime</dt>
+              <dd className="tabular mt-0.5 text-[22px] font-semibold">{n(Math.round(week.totals.overtimeHours))} h</dd>
+              <dd className="text-[12px] text-muted">{week.totals.overtimePeople} people · estimate</dd>
+            </div>
+            <div>
+              <dt className="text-[12px] text-faint">Callouts covered</dt>
+              <dd className="tabular mt-0.5 text-[22px] font-semibold">{week.totals.callouts ? `${week.totals.calloutsCovered}/${week.totals.callouts}` : "—"}</dd>
+              <dd className="text-[12px] text-muted">{week.totals.callouts ? "this week" : "none this week"}</dd>
+            </div>
+          </dl>
+        </Link>
       )}
 
       {facilities.length === 0 ? (

@@ -79,4 +79,19 @@
 
 **Tests:** 6 new pool tests (107 in total).
 
-## Next: Phase 5, Reporting and exports
+## Phase 5: Reporting and exports (complete)
+
+**Built and tested**
+- **Reports page** (`/reports`, for anyone with `reports.view`, scoped to their facilities):
+  - periods: this week, last week, last 4 weeks, last 3 months, or custom dates; one facility or all;
+  - headline figures: **fill rate**, **scheduled vs budget**, **clocked vs scheduled**, **overtime (estimate)**, **median time to fill** open shifts, **callouts covered** (and median time to cover);
+  - **Hours by facility** chart (budget / scheduled / clocked) with hover details, plus the same figures in a table with pool hours, time to fill and callouts;
+  - **Overtime** list: people over the threshold in a workweek, counting every facility.
+- **Definitions are explicit** (on the page and in the export's "About" sheet). Ratios compare only facilities that have a schedule for the period, so an unscheduled facility shows "No schedule" rather than 0%. Overtime is an estimate; payroll stays the official record.
+- **Exports** (`reports.export`): an **Excel workbook** with Summary, Coverage (every shift), Overtime, Open shifts, Callouts and About sheets, or a **CSV** of any one of them. Exports are limited to the facilities you're responsible for, protected against spreadsheet formula injection, and **recorded in the audit log**.
+- **Overview → "This week"** strip: openings filled, scheduled vs budget, projected overtime, callouts covered, linking to Reports.
+
+**Tests:** 8 new report tests (115 in total).
+
+## Next: Phase 6, Hardening
+Row-level security in the database, a security review, concurrency load tests, sync-failure drills, mobile QA, a backup/restore runbook, and error monitoring.

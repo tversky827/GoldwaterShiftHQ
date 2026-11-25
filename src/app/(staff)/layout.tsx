@@ -1,4 +1,4 @@
-import { Building2, CalendarDays, CalendarPlus, LayoutGrid, Network, LogOut, Settings, Smartphone, Users } from "lucide-react";
+import { BarChart3, Building2, CalendarDays, CalendarPlus, LayoutGrid, Network, LogOut, Settings, Smartphone, Users } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { BrandMark, DemoBanner } from "@/components/brand";
@@ -19,6 +19,7 @@ function navFor(actor: Actor) {
   if (canSeePool(actor)) items.push({ href: "/pool", label: "Regional pool", icon: <Network /> });
   if (can(actor, "facilities.view")) items.push({ href: "/facilities", label: "Facilities", icon: <Building2 /> });
   if (can(actor, "employees.view")) items.push({ href: "/employees", label: "Employees", icon: <Users /> });
+  if (can(actor, "reports.view")) items.push({ href: "/reports", label: "Reports", icon: <BarChart3 /> });
   items.push({ href: "/settings", label: "Settings", icon: <Settings /> });
   return items;
 }
