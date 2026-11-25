@@ -81,10 +81,14 @@ export interface EvaluateInput {
   now?: Date;
   /** Ignore this assignment (e.g. when re-evaluating an existing one). */
   ignoreAssignmentId?: string;
+  /** Ignore several assignments (e.g. both sides of a shift swap). */
+  ignoreAssignmentIds?: string[];
 }
 
 export async function evaluateAssignment(db: Db | Tx, input: EvaluateInput): Promise<Evaluation> {
   const now = input.now ?? new Date();
+  const ignore = new Set([...(input.ignoreAssignmentIds ?? []), ...(input.ignoreAssignmentId ? [input.ignoreAssignmentId] : [])]);
+  const ignoreSql = ignore.size ? sql`${shiftAssignments.id} not in (${sql.join([...ignore].map((i) => sql`${i}::uuid`), sql`, `)})` : sql`true`;
   const [row] = await db
     .select({ shift: shifts, facility: facilities, orgTz: organizations.defaultTimezone })
     .from(shifts)
@@ -107,7 +111,7 @@ export async function evaluateAssignment(db: Db | Tx, input: EvaluateInput): Pro
   const [{ filled }] = await db
     .select({ filled: sql<number>`count(*)::int` })
     .from(shiftAssignments)
-    .where(and(eq(shiftAssignments.shiftId, shift.id), eq(shiftAssignments.status, "assigned"), input.ignoreAssignmentId ? sql`${shiftAssignments.id} <> ${input.ignoreAssignmentId}` : sql`true`));
+    .where(and(eq(shiftAssignments.shiftId, shift.id), eq(shiftAssignments.status, "assigned"), ignoreSql));
   if (shift.status !== "active") add(undefined, "shift_capacity", "Open slot", "This shift has been cancelled.", "hard_block", false);
   else if (filled >= shift.requiredCount) add(undefined, "shift_capacity", "Open slot", `This shift is fully staffed (${filled}/${shift.requiredCount}).`, "hard_block", false);
 
@@ -149,7 +153,7 @@ export async function evaluateAssignment(db: Db | Tx, input: EvaluateInput): Pro
   // --- Overlaps, rest, daily hours, consecutive days (all facilities)
   const dayBefore = new Date(shift.startsAt.getTime() - 48 * 3_600_000);
   const dayAfter = new Date(shift.endsAt.getTime() + 48 * 3_600_000);
-  const nearby = (await assignmentsInRange(db, [emp.id], dayBefore, dayAfter)).filter((a) => a.id !== input.ignoreAssignmentId && a.shiftId !== shift.id);
+  const nearby = (await assignmentsInRange(db, [emp.id], dayBefore, dayAfter)).filter((a) => !ignore.has(a.id) && a.shiftId !== shift.id);
   const ov = byType.get("overlapping_shifts");
   const overlapping = nearby.filter((a) => a.startsAt < shift.endsAt && a.endsAt > shift.startsAt);
   if (ov && overlapping.length) add(ov, "overlapping_shifts", ov.name, `Overlaps another shift at ${overlapping[0].facilityName} (${fmt(overlapping[0].startsAt, overlapping[0].facilityTimezone)}).`, "hard_block", false);
@@ -176,15 +180,15 @@ export async function evaluateAssignment(db: Db | Tx, input: EvaluateInput): Pro
   const week = workweekFor(shift.startsAt, row.orgTz, overtime?.workweekStartDay ?? 0);
   const before = (await weeklyHours(db, [emp.id], week, now)).get(emp.id)!;
   // Remove the ignored assignment's hours (re-evaluation case).
-  const ignored = input.ignoreAssignmentId ? (await assignmentsInRange(db, [emp.id], week.start, week.end)).find((a) => a.id === input.ignoreAssignmentId) : undefined;
-  const baseProjected = before.projected - (ignored ? ignored.paidHours : 0);
+  const ignored = ignore.size ? (await assignmentsInRange(db, [emp.id], week.start, week.end)).filter((a) => ignore.has(a.id)) : [];
+  const baseProjected = before.projected - ignored.reduce((s, a) => s + a.paidHours, 0);
   const candidate = Number(shift.paidHours);
   const after = Math.round((baseProjected + candidate) * 10) / 10;
 
   const cons = byType.get("max_consecutive_days");
   if (cons) {
     const limit = num((cons.params as Record<string, unknown>).days, 6);
-    const dates = new Set((await assignmentsInRange(db, [emp.id], new Date(shift.startsAt.getTime() - 14 * 86_400_000), new Date(shift.startsAt.getTime() + 14 * 86_400_000))).filter((a) => a.id !== input.ignoreAssignmentId).map((a) => localDate(a.startsAt, tz)));
+    const dates = new Set((await assignmentsInRange(db, [emp.id], new Date(shift.startsAt.getTime() - 14 * 86_400_000), new Date(shift.startsAt.getTime() + 14 * 86_400_000))).filter((a) => !ignore.has(a.id)).map((a) => localDate(a.startsAt, tz)));
     dates.add(shiftDate);
     let run = 1;
     for (let d = addDaysStr(shiftDate, -1); dates.has(d); d = addDaysStr(d, -1)) run++;
