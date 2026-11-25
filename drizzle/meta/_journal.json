@@ -43,6 +43,13 @@
       "when": 1795635398758,
       "tag": "0005_override_rule_type",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795638831359,
+      "tag": "0006_phase3_marketplace",
+      "breakpoints": true
     }
   ]
 }

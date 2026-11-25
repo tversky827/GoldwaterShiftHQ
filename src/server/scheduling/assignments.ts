@@ -11,11 +11,12 @@
  * employee, so concurrent requests can't break these rules.
  */
 import { and, desc, eq } from "drizzle-orm";
-import type { Db } from "@/db";
+import type { Db, Tx } from "@/db";
 import { approvalRequests, employees, facilities, notifications, positions, ruleOverrides, shiftAssignments, shifts, users } from "@/db/schema";
 import { audit, type AuditContext } from "../audit";
 import { AppError, friendlyDbError, NotFoundError } from "../errors";
 import { assertCan, can, type Actor } from "../rbac/access";
+import { refreshShiftMarket } from "../marketplace/state";
 import { blockingResults, evaluateAssignment, type Evaluation, type RuleResult } from "./rules";
 
 export type AssignStatus = "assigned" | "blocked" | "needs_override" | "needs_approval_reason" | "pending_approval";
@@ -71,46 +72,69 @@ export async function assignEmployee(
   return { status: "assigned", assignmentId, evaluation, message: warnings.length ? `Assigned with ${warnings.length} warning${warnings.length > 1 ? "s" : ""}: ${warnings.map((w) => w.message).join(" ")}` : "Assigned." };
 }
 
-async function insertAssignment(
-  db: Db,
-  ctx: AuditContext,
-  userId: string,
-  a: { shiftId: string; employeeId: string; facilityId: string; evaluation: Evaluation; overridden: RuleResult[]; explanation: string; via: "scheduler" | "auto"; approvedBy: string | null },
-) {
+export interface NewAssignment {
+  shiftId: string;
+  employeeId: string;
+  facilityId: string;
+  evaluation: Evaluation;
+  overridden: RuleResult[];
+  explanation: string;
+  via: "scheduler" | "auto" | "marketplace" | "swap" | "callout";
+  approvedBy: string | null;
+}
+
+/**
+ * Writes one assignment, its rule overrides and the audit entry inside an
+ * existing transaction. The database trigger still enforces capacity, overlap
+ * and active-employee rules, so a concurrent winner makes this throw.
+ */
+export async function insertAssignmentTx(tx: Tx, ctx: AuditContext, userId: string | null, a: NewAssignment): Promise<string> {
+  const [row] = await tx
+    .insert(shiftAssignments)
+    .values({
+      shiftId: a.shiftId,
+      employeeId: a.employeeId,
+      facilityId: a.facilityId,
+      startsAt: new Date(0), // replaced by trigger with the shift's own times
+      endsAt: new Date(1),
+      assignedVia: a.via,
+      assignedBy: userId,
+      approvedBy: a.approvedBy,
+      ruleEvaluation: { outcome: a.evaluation.outcome, results: a.evaluation.results, hours: { projectedAfter: a.evaluation.hours.afterAssignment } },
+    })
+    .returning({ id: shiftAssignments.id });
+  for (const r of a.overridden) {
+    if (!userId) throw new AppError("An override needs a person to approve it.");
+    await tx.insert(ruleOverrides).values({ ruleId: r.ruleType === "overtime" || r.ruleType === "employee_active" ? null : r.ruleId, ruleType: r.ruleType, subjectType: "shift_assignment", subjectId: row.id, employeeId: a.employeeId, explanation: a.explanation, overriddenBy: userId });
+  }
+  await audit(tx, ctx, {
+    action: a.overridden.length ? "assignment.created_with_override" : "assignment.created",
+    entityType: "shift_assignment",
+    entityId: row.id,
+    facilityId: a.facilityId,
+    after: { shiftId: a.shiftId, employeeId: a.employeeId, via: a.via, outcome: a.evaluation.outcome, overridden: a.overridden.map((r) => r.ruleType) },
+    reason: a.explanation || null,
+  });
+  return row.id;
+}
+
+/** Runs `fn` in a transaction and turns integrity-trigger errors into friendly AppErrors. */
+export async function withFriendlyDbErrors<T>(db: Db, fn: (tx: Tx) => Promise<T>): Promise<T> {
   try {
-    return await db.transaction(async (tx) => {
-      const [row] = await tx
-        .insert(shiftAssignments)
-        .values({
-          shiftId: a.shiftId,
-          employeeId: a.employeeId,
-          facilityId: a.facilityId,
-          startsAt: new Date(0), // replaced by trigger with the shift's own times
-          endsAt: new Date(1),
-          assignedVia: a.via,
-          assignedBy: userId,
-          approvedBy: a.approvedBy,
-          ruleEvaluation: { outcome: a.evaluation.outcome, results: a.evaluation.results, hours: { projectedAfter: a.evaluation.hours.afterAssignment } },
-        })
-        .returning({ id: shiftAssignments.id });
-      for (const r of a.overridden) {
-        await tx.insert(ruleOverrides).values({ ruleId: r.ruleType === "overtime" || r.ruleType === "employee_active" ? null : r.ruleId, ruleType: r.ruleType, subjectType: "shift_assignment", subjectId: row.id, employeeId: a.employeeId, explanation: a.explanation, overriddenBy: userId });
-      }
-      await audit(tx, ctx, {
-        action: a.overridden.length ? "assignment.created_with_override" : "assignment.created",
-        entityType: "shift_assignment",
-        entityId: row.id,
-        facilityId: a.facilityId,
-        after: { shiftId: a.shiftId, employeeId: a.employeeId, outcome: a.evaluation.outcome, overridden: a.overridden.map((r) => r.ruleType) },
-        reason: a.explanation || null,
-      });
-      return row.id;
-    });
+    return await db.transaction(fn);
   } catch (e) {
     const friendly = friendlyDbError(e);
     if (friendly) throw new AppError(friendly);
     throw e;
   }
+}
+
+async function insertAssignment(db: Db, ctx: AuditContext, userId: string, a: NewAssignment) {
+  return withFriendlyDbErrors(db, async (tx) => {
+    const id = await insertAssignmentTx(tx, ctx, userId, a);
+    await refreshShiftMarket(tx, ctx, a.shiftId);
+    return id;
+  });
 }
 
 async function createApprovalRequest(db: Db, actor: Actor, ctx: AuditContext, r: { shiftId: string; facilityId: string; employeeId: string; evaluation: Evaluation; note: string }) {
@@ -156,6 +180,7 @@ export async function unassign(db: Db, actor: Actor, ctx: AuditContext, assignme
   await db.transaction(async (tx) => {
     await tx.update(shiftAssignments).set({ status: "cancelled", cancelledAt: new Date(), cancelledBy: actor.userId, cancelReason: reason || "Removed by scheduler" }).where(eq(shiftAssignments.id, assignmentId));
     await audit(tx, ctx, { action: "assignment.removed", entityType: "shift_assignment", entityId: assignmentId, facilityId: a.facilityId, before: { employeeId: a.employeeId, shiftId: a.shiftId }, reason: reason || null });
+    await refreshShiftMarket(tx, ctx, a.shiftId);
   });
 }
 

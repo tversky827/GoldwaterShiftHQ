@@ -678,27 +678,68 @@ export const shiftWaitlists = pgTable(
 
 export const shiftSwapRequests = pgTable("shift_swap_requests", {
   id: id(),
+  requesterEmployeeId: uuid().references(() => employees.id),
   requesterAssignmentId: uuid().notNull().references(() => shiftAssignments.id),
   targetEmployeeId: uuid().notNull().references(() => employees.id),
   targetAssignmentId: uuid().references(() => shiftAssignments.id),
   status: swapStatus().notNull().default("pending_peer"),
+  note: text(),
   ruleEvaluation: jsonb(),
+  peerRespondedAt: ts(),
   decidedBy: uuid().references(() => users.id),
   decidedAt: ts(),
   decisionReason: text(),
   ...timestamps,
 });
 
-export const callouts = pgTable("callouts", {
-  id: id(),
-  assignmentId: uuid().notNull().references(() => shiftAssignments.id),
-  reportedBy: uuid().references(() => users.id),
-  reason: text(),
-  status: calloutStatus().notNull().default("open"),
-  escalationLevel: integer().notNull().default(0),
-  listingId: uuid().references(() => marketplaceListings.id),
-  ...timestamps,
-});
+export const callouts = pgTable(
+  "callouts",
+  {
+    id: id(),
+    assignmentId: uuid().notNull().references(() => shiftAssignments.id),
+    /** Denormalized for queries (copied from the assignment). */
+    shiftId: uuid().references(() => shifts.id),
+    facilityId: uuid().references(() => facilities.id),
+    reportedBy: uuid().references(() => users.id),
+    reason: text(),
+    status: calloutStatus().notNull().default("open"),
+    /** 0 = home facility staff notified; 1 = widened to cross-facility/pool staff; 2 = leadership alerted. */
+    escalationLevel: integer().notNull().default(0),
+    escalatedAt: ts(),
+    listingId: uuid().references(() => marketplaceListings.id),
+    resolvedAt: ts(),
+    ...timestamps,
+  },
+  (t) => [index("callouts_status_idx").on(t.status, t.facilityId), uniqueIndex("callouts_assignment_uq").on(t.assignmentId)],
+);
+
+/**
+ * Marketplace behaviour. One organization-wide row (facilityId null) plus
+ * optional per-facility rows that replace it.
+ */
+export const marketplaceSettings = pgTable(
+  "marketplace_settings",
+  {
+    id: id(),
+    organizationId: uuid().notNull().references(() => organizations.id),
+    facilityId: uuid().references(() => facilities.id),
+    /** Automatically publish unfilled shifts of published schedules. */
+    autoPublish: boolean().notNull().default(false),
+    autoPublishHoursBefore: integer().notNull().default(72),
+    /** Listings close this many hours before the shift starts (0 = at start). */
+    expiryHoursBefore: integer().notNull().default(2),
+    /** Every claim needs a reviewer, even when the rules engine is happy. */
+    requireApproval: boolean().notNull().default(false),
+    /** Minutes an uncovered callout waits before escalating to level 1, then level 2. */
+    escalationMinutes: integer().array().notNull().default(sql`'{30,60}'::integer[]`),
+    ...timestamps,
+    ...actorCols,
+  },
+  (t) => [
+    unique("marketplace_settings_scope_uq").on(t.organizationId, t.facilityId).nullsNotDistinct(),
+    check("marketplace_settings_hours_ck", sql`${t.autoPublishHoursBefore} between 1 and 720 and ${t.expiryHoursBefore} between 0 and 72`),
+  ],
+);
 
 /* ------------------------------------------------------ rules & workflow */
 
