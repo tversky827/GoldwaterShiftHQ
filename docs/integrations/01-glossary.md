@@ -31,5 +31,5 @@
 | **CSV** | A simple spreadsheet file format (opens in Excel). |
 | **Employee identifier / employee number** | The ID number both systems use for the same person. Matching depends on it being identical in Paycor and AOD. |
 | **Reconciliation** | Comparing two systems to find where they disagree (for example someone punching in AOD who's terminated in Paycor). |
-| **Mock data** | Fake data built into the app for testing. Always labeled **MOCK DATA - NOT REAL**. |
+| **Demonstration (mock) data** | Fictional data built into the app for testing. Always labeled **Demonstration data**, and refused when `APP_ENV=production`. |
 | **HTTP status codes** | Numbers a system replies with. 200 = OK. 401 = "who are you?" (bad credentials). 403 = "I know you, but you're not allowed". 404 = "that address doesn't exist". 429 = "slow down". 500+ = "the vendor's system had a problem". |

@@ -1,0 +1,2 @@
+ALTER TABLE "integration_field_mappings" DROP CONSTRAINT "integration_mappings_uq";--> statement-breakpoint
+ALTER TABLE "integration_field_mappings" ADD CONSTRAINT "integration_mappings_uq" UNIQUE NULLS NOT DISTINCT("organization_id","provider","source_type","source_value","facility_id");

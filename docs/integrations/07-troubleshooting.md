@@ -7,8 +7,8 @@ Every error on the dashboard is written in plain English. Find it below. Still s
 | Message / symptom | Meaning | Fix |
 |---|---|---|
 | "These settings are missing: …" | A required setting is blank | Fill it in (`.env.local` or hosting settings), restart, then `npm run check-config` |
-| Browser asks for username/password | The admin pages are protected | Use `ADMIN_USERNAME` / `ADMIN_PASSWORD` from your settings |
-| "ADMIN_PASSWORD is not set" (hosted) | The hosted app refuses to run without an admin password | Add `ADMIN_PASSWORD` in hosting settings, then redeploy |
+| “That email and password don’t match” | Wrong email/password, or the account isn’t activated | Use the invitation link to set a password; ask a corporate admin for a new link if it expired |
+| “Too many sign-in attempts” / “temporarily locked” | Protection against password guessing | Wait 15 minutes, then try again |
 | Changes to `.env.local` have no effect | The app only reads settings at startup | Stop it (`Ctrl+C`) and run `npm run dev` again |
 | "A synchronization is already in progress" | Someone clicked Sync twice | Wait a minute and refresh. A stuck sync clears itself after 30 minutes |
 

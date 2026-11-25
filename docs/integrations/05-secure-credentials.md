@@ -15,7 +15,7 @@
 | `PAYCOR_CLIENT_SECRET`, `PAYCOR_SUBSCRIPTION_KEY` | **Yes** |
 | `AOD_ACCESS_PASSWORD` | **Yes** |
 | `AOD_ACCESS_ACCOUNT` | Treat as secret |
-| `ADMIN_PASSWORD`, `APP_ENCRYPTION_KEY` | **Yes** |
+| `APP_ENCRYPTION_KEY`, `CRON_SECRET`, `DATABASE_URL` | **Yes** |
 | `PAYCOR_CLIENT_ID`, `PAYCOR_APP_SCOPE`, `PAYCOR_ACTIVATION_URL`, `AOD_HOSTNAME`, modes | No |
 
 ---
@@ -29,13 +29,13 @@
      ```
    - **Windows:** in File Explorer, copy and paste `.env.example`, then rename the copy to `.env.local`. (Turn on "File name extensions" under the View menu so you can see the full name.)
 2. Open `.env.local` in a plain text editor (Notepad, TextEdit in plain-text mode, or VS Code).
-3. Set a strong `ADMIN_PASSWORD`.
+3. (Sign-in is handled by the app itself: people get invitation links and set their own passwords. No admin password goes in this file.)
 4. Generate an encryption key by running this in the terminal:
    ```bash
    node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
    ```
    Copy the output into `APP_ENCRYPTION_KEY=`. It encrypts the Paycor tokens the app saves. **Don't change it later**, or saved Paycor connections must be redone.
-5. Leave `PAYCOR_MODE=mock` and `AOD_MODE=mock` for now.
+5. Leave `PAYCOR_MODE=demo` and `AOD_MODE=demo` for now, and run `npm run seed:demo` once to load demonstration data.
 6. Save. Then check your work:
    ```bash
    npm run check-config
@@ -64,7 +64,7 @@ Copy secrets **directly from the vendor portal into the settings file or screen*
 | AOD | `AOD_ENVIRONMENT=test` + test-database Access Account | `AOD_ENVIRONMENT=production` + production Access Account |
 
 Safety features already built in:
-- The dashboard always shows the mode. Production shows a red **PRODUCTION - REAL DATA** label, and mock shows a yellow **MOCK DATA - NOT REAL** label.
+- The dashboard always shows the mode. Production shows a red **Production · real data** label, and demonstration mode shows a yellow **Demonstration data** label and banner.
 - Saved Paycor tokens are tagged sandbox or production, so a sandbox token is never used against production.
 - Switching between mock and real data removes the other kind, so fake and real employees never mix.
 
@@ -87,5 +87,5 @@ Safety features already built in:
 ## Part E: Maintenance reminders
 
 - 🔁 **Paycor client secret expires every 365 days.** Set a calendar reminder for 11 months after creating it.
-- 🔁 Change `ADMIN_PASSWORD` whenever someone with access leaves.
+- 🔁 When someone with access leaves, disable their account in Settings → Users & access (this signs them out everywhere).
 - 🔁 Review who has Paycor client-admin and AOD Access Account rights once a year.

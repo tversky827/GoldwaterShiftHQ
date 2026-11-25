@@ -25,7 +25,7 @@ If your screen ever looks different from what a guide describes, stop and descri
 
 - GoldwaterShiftHQ **reads** from Paycor and AOD. It never changes punches, payroll, or employee records in those systems.
 - Each piece of data has exactly one "owner" system. See [06-data-ownership-matrix.md](06-data-ownership-matrix.md).
-- Until the real connections are approved, the app runs on **mock (fake) data**, clearly labeled **MOCK DATA - NOT REAL** on every screen. That lets the rest of the app keep moving while vendor approvals are pending.
+- Until the real connections are approved, the app runs on **demonstration (fictional) data**, clearly labeled **Demonstration data** on every screen. That lets the rest of the app keep moving while vendor approvals are pending.
 
 ---
 
@@ -72,8 +72,8 @@ When something breaks: [07-troubleshooting.md](07-troubleshooting.md).
 
 | Page | Address (when running on your computer) | What it shows |
 |---|---|---|
-| Integration dashboard | http://localhost:3000/admin/integrations | Connection status, last sync, counts, errors, "Test connection" and "Sync now" buttons |
-| Reconciliation & exceptions | http://localhost:3000/admin/integrations/reconciliation | Employee matching problems, timekeeping exceptions, scheduled vs clocked hours |
+| Integration dashboard | http://localhost:3000/settings/integrations | Connection status, last sync, counts, errors, "Test connection" and "Sync now" buttons, mappings, sync history |
+| Reconciliation | http://localhost:3000/settings/integrations?tab=reconciliation | Employee matching problems, timekeeping exceptions, scheduled vs clocked hours |
 
 ### Status colors on the dashboard
 - **● Connected**: working normally.

@@ -143,7 +143,7 @@ Follow [05-secure-credentials.md](05-secure-credentials.md), Part B, to put them
 
 **What happens (plain English):** you prove to Paycor that you, an admin, approve this app reading your company's data. Paycor gives our app a pass for that one legal entity. Repeat once per legal entity.
 
-1. Start the app (`npm run dev`) and open http://localhost:3000/admin/integrations.
+1. Start the app (`npm run dev`) and sign in as a corporate administrator, and open **Settings → Integrations** (http://localhost:3000/settings/integrations).
 2. On the **Paycor** card, type the **Legal Entity ID** and click **Connect Paycor**.
 3. Your browser goes to Paycor. Log in as a **client admin** and approve the app.
 4. Paycor sends you back to the dashboard.

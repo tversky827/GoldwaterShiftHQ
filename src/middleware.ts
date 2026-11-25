@@ -1,30 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Protects admin pages and integration APIs with a username/password.
- * Placeholder until the platform's real login system exists.
+ * Lightweight gate: sends visitors without a session cookie to sign-in.
+ * Real session validation and every permission check happen on the server
+ * (src/server/context.ts) because middleware can't reach the database.
  */
-function safeEqual(a: string, b: string) {
-  let diff = a.length ^ b.length;
-  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
-  return diff === 0;
-}
+const PUBLIC = [/^\/login/, /^\/invite\//, /^\/forbidden/, /^\/api\/cron\//, /^\/manifest\.webmanifest$/, /^\/sw\.js$/, /^\/icons\//, /^\/offline/];
 
 export function middleware(req: NextRequest) {
-  const user = process.env.ADMIN_USERNAME ?? "admin";
-  const pass = process.env.ADMIN_PASSWORD;
-  if (!pass) {
-    if (process.env.NODE_ENV === "production") {
-      return new NextResponse("ADMIN_PASSWORD is not set. Set it in the hosting environment variables.", { status: 503 });
-    }
-    return NextResponse.next(); // local development only; dashboard shows a warning
-  }
-  const header = req.headers.get("authorization") ?? "";
-  if (header.startsWith("Basic ")) {
-    const [u, ...rest] = atob(header.slice(6)).split(":");
-    if (safeEqual(u, user) && safeEqual(rest.join(":"), pass)) return NextResponse.next();
-  }
-  return new NextResponse("Authentication required", { status: 401, headers: { "WWW-Authenticate": 'Basic realm="GoldwaterShiftHQ admin"' } });
+  const { pathname, search } = req.nextUrl;
+  if (PUBLIC.some((r) => r.test(pathname))) return NextResponse.next();
+  if (req.cookies.get("gshq_session")?.value) return NextResponse.next();
+  if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  const url = req.nextUrl.clone();
+  url.pathname = "/login";
+  url.search = pathname === "/" ? "" : `?next=${encodeURIComponent(pathname + search)}`;
+  return NextResponse.redirect(url);
 }
 
-export const config = { matcher: ["/admin/:path*", "/api/integrations/:path*"] };
+export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
