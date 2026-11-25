@@ -16,8 +16,18 @@ export async function register() {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
     environment: process.env.APP_ENV ?? process.env.NODE_ENV,
-    sendDefaultPii: false,
+    // Collect no personal data (Sentry 11 collects all of these by default).
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: { request: { allow: ["user-agent"] }, response: false },
+      httpBodies: [],
+      urlQueryParams: false,
+      graphQL: { document: false, variables: false },
+      genAI: { inputs: false, outputs: false },
+    },
     tracesSampleRate: 0,
+    // Second layer: strip anything personal that might still be attached.
     beforeSend(event) {
       if (event.request) {
         delete event.request.cookies;
