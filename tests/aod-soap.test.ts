@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AodSoapClient, AodSoapFault, aodTimestamp, buildSoapEnvelope, chooseHyperQuery, mapAodEmployee, pairTransactions, parseSoapReturn } from "@/server/integrations/aod/soap";
+import { AodSoapClient, AodSoapFault, aodFacilityFromWorkgroup, aodTimestamp, buildSoapEnvelope, chooseHyperQuery, mapAodEmployee, pairTransactions, parseSoapReturn } from "@/server/integrations/aod/soap";
 import type { AodConfig } from "@/server/integrations/config";
 
 const env = (inner: string) => `<?xml version="1.0"?><SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"><SOAP-ENV:Body SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">${inner}</SOAP-ENV:Body></SOAP-ENV:Envelope>`;
@@ -9,14 +9,14 @@ const emp = (id: number, f: Record<string, string>) =>
 // Delphi-style RPC/encoded: array items are references to separate elements.
 const EMPLOYEES_HREF = env(
   `<NS1:getAllEmployeesListResponse xmlns:NS1="urn:AeXMLBridgeIntf-IAeXMLBridge"><return xsi:type="SOAP-ENC:Array" SOAP-ENC:arrayType="NS2:TAeEmployeeBasic[2]"><item href="#1"/><item href="#2"/></return></NS1:getAllEmployeesListResponse>` +
-    emp(1, { EmpName: "Diaz, Ana", LastName: "Diaz", FirstName: "Ana", EmpID: "1042", Badge: "77", Filekey: "5001", ActiveStatus: "0", DateOfHire: "2019-04-01", WGDescr: "Maple Grove/Nursing/CNA" }) +
-    emp(2, { EmpName: "Lee, Bo", LastName: "Lee", FirstName: "Bo", EmpID: "1043", Badge: "0", Filekey: "5002", ActiveStatus: "1", DateOfHire: "2018-01-01", WGDescr: "Cedar Ridge/Dietary/Cook" }),
+    emp(1, { EmpName: "Diaz, Ana", LastName: "Diaz", FirstName: "Ana", EmpID: "1042", Badge: "77", Filekey: "5001", ActiveStatus: "0", DateOfHire: "2019-04-01", WGDescr: "Maple Grove-Nursing-CNA-**No Supervisor Assigned**" }) +
+    emp(2, { EmpName: "Lee, Bo", LastName: "Lee", FirstName: "Bo", EmpID: "1043", Badge: "0", Filekey: "5002", ActiveStatus: "1", DateOfHire: "2018-01-01", WGDescr: "Cedar Ridge-Dietary Department-Cook-Smith, Pat" }),
 );
 // Inline style: the same data without references.
 const EMPLOYEES_INLINE = env(
-  `<ns:getAllEmployeesListResponse xmlns:ns="urn:AeXMLBridgeIntf-IAeXMLBridge"><return><item><EmpID>1042</EmpID><FirstName>Ana</FirstName><LastName>Diaz</LastName><Badge>77</Badge><Filekey>5001</Filekey><ActiveStatus>0</ActiveStatus><WGDescr>Maple Grove/Nursing/CNA</WGDescr></item></return></ns:getAllEmployeesListResponse>`,
+  `<ns:getAllEmployeesListResponse xmlns:ns="urn:AeXMLBridgeIntf-IAeXMLBridge"><return><item><EmpID>1042</EmpID><FirstName>Ana</FirstName><LastName>Diaz</LastName><Badge>77</Badge><Filekey>5001</Filekey><ActiveStatus>0</ActiveStatus><WGDescr>Maple Grove-Nursing-CNA-**No Supervisor Assigned**</WGDescr></item></return></ns:getAllEmployeesListResponse>`,
 );
-const tx = (id: number, empId: string, filekey: string, ts: string, type: number) => emp(id, { EmpID: empId, Filekey: filekey, FirstName: "x", LastName: "y", WGDescr: "Maple Grove/Nursing/CNA", TimeStamp: ts, Station: "1", TransType: String(type) });
+const tx = (id: number, empId: string, filekey: string, ts: string, type: number) => emp(id, { EmpID: empId, Filekey: filekey, FirstName: "x", LastName: "y", WGDescr: "Maple Grove-Nursing-CNA-**No Supervisor Assigned**", TimeStamp: ts, Station: "1", TransType: String(type) });
 
 describe("AOD SOAP (CC1) client", () => {
   it("builds an RPC/encoded request with typed parameters", () => {
@@ -30,12 +30,19 @@ describe("AOD SOAP (CC1) client", () => {
   it("reads arrays in both reference (href/id) and inline styles", () => {
     const a = parseSoapReturn(EMPLOYEES_HREF) as Record<string, string>[];
     expect(a.map(mapAodEmployee)).toEqual([
-      { aodId: "5001", employeeNumber: "1042", badgeNumber: "77", firstName: "Ana", lastName: "Diaz", active: true, homeFacility: "Maple Grove/Nursing/CNA", isMock: false },
-      { aodId: "5002", employeeNumber: "1043", badgeNumber: undefined, firstName: "Bo", lastName: "Lee", active: false, homeFacility: "Cedar Ridge/Dietary/Cook", isMock: false },
+      { aodId: "5001", employeeNumber: "1042", badgeNumber: "77", firstName: "Ana", lastName: "Diaz", active: true, homeFacility: "Maple Grove", isMock: false },
+      { aodId: "5002", employeeNumber: "1043", badgeNumber: undefined, firstName: "Bo", lastName: "Lee", active: false, homeFacility: "Cedar Ridge", isMock: false },
     ]);
     const b = parseSoapReturn(EMPLOYEES_INLINE) as Record<string, string>[];
     expect(mapAodEmployee(b[0])).toMatchObject({ employeeNumber: "1042", active: true });
     expect(parseSoapReturn(env(`<ns:getCompanyNameResponse xmlns:ns="x"><return xsi:type="xsd:string">Goldwater Care</return></ns:getCompanyNameResponse>`))).toBe("Goldwater Care");
+  });
+
+  it("takes the facility from Goldwater's work group (Facility-Department-Position-Supervisor)", () => {
+    expect(aodFacilityFromWorkgroup("Peoria Heights-Nursing-LPN-**No Supervisor Assigned**")).toBe("Peoria Heights");
+    expect(aodFacilityFromWorkgroup("Estates of Clinton-Office-Receptionist/Clerk-Doe, Jo")).toBe("Estates of Clinton");
+    expect(aodFacilityFromWorkgroup("**Default**-**Default**-**Default**-**Default**")).toBeUndefined();
+    expect(aodFacilityFromWorkgroup("")).toBeUndefined();
   });
 
   it("turns a SOAP fault into a readable error", () => {

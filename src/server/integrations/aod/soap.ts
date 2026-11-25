@@ -135,6 +135,17 @@ export function parseSoapReturn(xml: string): unknown {
 
 const asArray = (v: unknown): Node[] => (Array.isArray(v) ? (v as Node[]) : v && typeof v === "object" ? [v as Node] : []);
 
+/**
+ * Goldwater's AOD work group description is "Facility-Department-Position-Supervisor"
+ * (seen in the live test, e.g. "Peoria Heights-Nursing-LPN-..."). Facility
+ * names contain spaces but no hyphens, so the facility is the first segment.
+ * "**Default**" means no work group was assigned.
+ */
+export function aodFacilityFromWorkgroup(wg: string): string | undefined {
+  const first = wg.split("-")[0]?.trim();
+  return first && !/^\*\*.*\*\*$/.test(first) ? first : undefined;
+}
+
 export function mapAodEmployee(r: Node): AodEmployee {
   const badge = text(r.Badge);
   return {
@@ -144,7 +155,7 @@ export function mapAodEmployee(r: Node): AodEmployee {
     firstName: text(r.FirstName),
     lastName: text(r.LastName),
     active: text(r.ActiveStatus) === "0",
-    homeFacility: text(r.WGDescr) || undefined,
+    homeFacility: aodFacilityFromWorkgroup(text(r.WGDescr)),
     isMock: false,
   };
 }
@@ -173,7 +184,7 @@ export function pairTransactions(rows: Node[], timeZone: string): AttendanceReco
     const t = Number(text(r.TransType) || "0");
     const base = t & 255;
     const kind: P["kind"] = t & 256 || base === 3 ? "in" : t & 512 || base === 4 ? "out" : base === 0 || base === 1 || base === 99 ? "toggle" : "ignore";
-    punches.push({ key: text(r.EmpID) || text(r.Filekey), filekey: text(r.Filekey), at, raw: text(r.TimeStamp), facility: text(r.WGDescr) || undefined, kind });
+    punches.push({ key: text(r.EmpID) || text(r.Filekey), filekey: text(r.Filekey), at, raw: text(r.TimeStamp), facility: aodFacilityFromWorkgroup(text(r.WGDescr)), kind });
   }
   const byEmp = new Map<string, P[]>();
   for (const p of punches) if (p.kind !== "ignore") byEmp.set(p.filekey || p.key, [...(byEmp.get(p.filekey || p.key) ?? []), p]);
