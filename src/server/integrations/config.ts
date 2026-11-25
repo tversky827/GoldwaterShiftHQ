@@ -65,6 +65,8 @@ export function getAodConfig() {
     hyperQuery: env("AOD_HYPERQUERY"),
     /** Time zone of AOD timestamps (the AOD company's time zone). Goldwater is in Illinois. */
     timeZone: env("AOD_TIMEZONE") ?? "America/Chicago",
+    /** AOD facility names (first part of the work group) whose punches are skipped, comma-separated. */
+    ignoreFacilities: (env("AOD_IGNORE_FACILITIES") ?? "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean),
   };
 }
 export type AodConfig = ReturnType<typeof getAodConfig>;

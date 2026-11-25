@@ -32,7 +32,10 @@ for (const e of active) groups.set(e.homeFacility ?? "(none)", (groups.get(e.hom
 console.log(`   Distinct work groups among active employees: ${groups.size}`);
 const to = new Date();
 const from = new Date(to.getTime() - 7 * 86_400_000);
-const segs = await client.fetchAttendance(from, to);
+const ign = new Set(c.ignoreFacilities);
+const all = await client.fetchAttendance(from, to);
+const segs = all.filter((s) => !(s.facility && ign.has(s.facility.toLowerCase())));
+if (ign.size) console.log(`   Skipping ${all.length - segs.length} shifts at ignored facilities (AOD_IGNORE_FACILITIES).`);
 const open = segs.filter((s) => !s.punchOut).length;
 const hours = segs.reduce((s, x) => s + (x.hours ?? 0), 0);
 console.log(`\n3) Punches, last 7 days: ${segs.length} worked shifts, ${Math.round(hours)} hours in total, ${open} without a clock-out yet.`);

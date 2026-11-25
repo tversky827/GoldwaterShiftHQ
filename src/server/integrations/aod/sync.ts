@@ -53,6 +53,9 @@ export async function syncAodTimekeeping(
   let records;
   try {
     records = await opts.source.fetchAttendance(from, to);
+    // Facilities the organization doesn't schedule in ShiftHQ (AOD_IGNORE_FACILITIES).
+    const ignored = new Set(cfg.ignoreFacilities ?? []);
+    if (ignored.size) records = records.filter((r) => !(r.facility && ignored.has(r.facility.toLowerCase())));
   } catch (e) {
     return fail(e instanceof IntegrationHttpError ? e.plainEnglish : (e as Error).message);
   }

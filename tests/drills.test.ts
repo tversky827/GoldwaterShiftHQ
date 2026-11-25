@@ -51,6 +51,27 @@ describe("failure drills", () => {
     expect(conn.status).toBe("needs_attention");
   });
 
+  it("punches at facilities listed in AOD_IGNORE_FACILITIES are skipped, others imported", async () => {
+    vi.stubEnv("AOD_IGNORE_FACILITIES", " Estates of Clinton ,Other Place");
+    const rec = (id: string, facility: string) => ({ id, aodEmployeeKey: "999001", facility, workDate: "2026-11-20", punchIn: "2026-11-20T12:00:00.000Z", punchOut: "2026-11-20T20:00:00.000Z", hours: 8, isMock: true });
+    const src: AodSource = {
+      label: "AOD (ignore test)",
+      isDemo: true,
+      testConnection: async () => ({ ok: true, message: "ok" }),
+      fetchEmployees: async () => [],
+      fetchAttendance: async () => [rec("ign-1", "estates of clinton"), rec("ign-2", "Maple Grove")],
+    };
+    try {
+      const out = await syncAodTimekeeping(db, { organizationId: orgId, source: src, trigger: "manual" });
+      expect(out.ok).toBe(true);
+      const ids = (await db.select({ id: timekeepingRecords.externalId }).from(timekeepingRecords)).map((r) => r.id);
+      expect(ids).toContain("ign-2");
+      expect(ids).not.toContain("ign-1");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("the database is unreachable: the health check says so (503) without leaking details", async () => {
     const { GET } = await import("@/app/api/health/route");
     setDbForTests({ execute: async () => { throw new Error("connect ECONNREFUSED 10.0.0.5:5432 password=hunter2"); } } as unknown as Db);
