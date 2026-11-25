@@ -99,8 +99,9 @@ Being honest about this matters. Nothing below was invented, but some details co
 | Rate limit: 1,000 calls per minute per app, counted across all APIs; 429 when exceeded | Paycor developer guides | **Verified** (the app stays at about 240/minute) |
 | Don't auto-retry POSTs that return 500 (risk of double-posting); GETs are safe to retry | Paycor developer guides | **Verified**, and the app follows it |
 | Sandbox and production have separate credentials; sandbox is requested via Support (about 5 business days) | Paycor developer guides | **Verified** |
-| Sandbox API host (`apis.paycor.com` vs `apis-sandbox.paycor.com`) | Shown only as a picture in the guide | **Must confirm** in the portal |
-| Exact paths for "Get Legal Entity" and "Get Employee Payrates by EmployeeID"; employee and pay-rate field names; scope names | API reference loads from `api.paycor.com`, still blocked | **Must confirm** (Test connection prints field names) |
+| Sandbox API host `https://apis-sandbox.paycor.com` (production `https://apis.paycor.com`); sandbox activation page on `hcm-demo.paycor.com` | Paycor developer guides | **Verified** |
+| Endpoint paths, field names and Data Access names for legal entity, employees, departments and pay rates | Paycor's published OpenAPI specification (v1) | **Verified**; the app now asks for status, dates, position and work location explicitly (`include=`) and reads pay rates per legal entity |
+| How Goldwater uses Paycor's employee "type" (Regular, Variable, Casual…) | Depends on your Paycor setup | **Confirm**: the app treats "Casual" as PRN |
 | AOD offers SOAP "web services" (CC1) using an AOD Access Account, HTTPS port 8192, company identified by web address | AOD public web-services docs | Confirm with AOD |
 | Goldwater's AOD web address is `goldwater.attendanceondemand.com` (employee self-service at `/ess/`) | Reached it on 2026-11-25 | **Verified** |
 | Port 8192 on that host | Connection reset from our cloud environment on 2026-11-25 | **Ask AOD** whether it's the right port and whether they allow-list IP addresses |

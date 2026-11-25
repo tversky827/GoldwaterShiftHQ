@@ -4,7 +4,8 @@ import { parseAodExport } from "@/server/integrations/aod/file";
 import { buildSoapEnvelope, parseWsdlOperations } from "@/server/integrations/aod/soap";
 import { fetchWithRetry, redact } from "@/server/integrations/http";
 import { assertCanWrite, OwnershipViolation } from "@/server/integrations/ownership";
-import { mapPaycorEmployee, normalizeStatus } from "@/server/integrations/paycor/client";
+import { departmentNames, employmentClassOf, mapPaycorEmployee, mapPayRate, normalizeStatus } from "@/server/integrations/paycor/client";
+import { normalizeEmploymentType } from "@/server/integrations/paycor/sync";
 import { buildActivationUrl, pkceChallenge, pkceVerifier, verifyState } from "@/server/integrations/paycor/oauth";
 import { decrypt, encrypt } from "@/server/integrations/crypto";
 import type { PaycorConfig } from "@/server/integrations/config";
@@ -54,6 +55,39 @@ describe("Paycor mapping", () => {
   it("maps nested fields defensively", () => {
     const e = mapPaycorEmployee({ id: "abc", employeeNumber: 42, firstName: "A", lastName: "B", employmentDateData: { hireDate: "2020-01-01T00:00:00" }, status: "Active" }, "7");
     expect(e).toMatchObject({ paycorEmployeeId: "abc", employeeNumber: "42", status: "active", hireDate: "2020-01-01", legalEntityId: "7" });
+  });
+  it("maps an employee shaped exactly like Paycor's API specification", () => {
+    const depts = departmentNames([{ id: "d-1", code: "200", description: "Nursing" }]);
+    const e = mapPaycorEmployee(
+      {
+        id: "e-1", firstName: "Ana", lastName: "Diaz", employeeNumber: "1042", badgeNumber: "77",
+        email: { type: "Work", emailAddress: "ana@example.test" },
+        employmentDateData: { hireDate: "2019-04-01T00:00:00Z", terminationDate: null },
+        statusData: { isFullTime: false, status: "LeaveWithoutPay", type: "Regular" },
+        positionData: { jobTitle: "Certified Nursing Assistant", jobCode: "CNA" },
+        workLocation: { id: "w-1", name: "Maple Grove" },
+        department: { id: "d-1", url: "v1/departments/d-1" },
+      },
+      "501123",
+      depts,
+    );
+    expect(e).toMatchObject({ paycorEmployeeId: "e-1", email: "ana@example.test", status: "leave", hireDate: "2019-04-01", position: "Certified Nursing Assistant", department: "Nursing", location: "Maple Grove", employmentClass: "Part Time (Regular)" });
+    expect(normalizeEmploymentType(e.employmentClass)).toBe("part_time");
+    expect(normalizeEmploymentType(employmentClassOf({ statusData: { isFullTime: true, type: "Regular" } }))).toBe("full_time");
+    expect(normalizeEmploymentType(employmentClassOf({ statusData: { isFullTime: false, type: "Casual" } }))).toBe("prn");
+    expect(normalizeEmploymentType(employmentClassOf({ statusData: { type: "Seasonal" } }))).toBe("temporary");
+  });
+  it("treats every Paycor separation status as terminated, and leaves as leave", () => {
+    for (const s of ["Terminated", "Resigned", "Retired", "Deceased"]) expect(normalizeStatus(s)).toBe("terminated");
+    for (const s of ["Fmla", "LeaveWithPay", "LeaveWithoutPay", "ShortTermDisability", "LongTermDisability", "WorkersCompensation", "ThirdPartyPayable"]) expect(normalizeStatus(s)).toBe("leave");
+    expect(normalizeStatus("LaidOff")).toBe("inactive");
+    expect(normalizeStatus("Active")).toBe("active");
+  });
+  it("maps pay rates: hourly as-is, salary at 2,080 hours, unpaid and ended rates skipped", () => {
+    expect(mapPayRate({ type: "Hourly", payRate: 21.5, effectiveStartDate: "2026-01-04T00:00:00Z" }, "e")).toMatchObject({ payType: "hourly", hourlyRate: 21.5, effectiveFrom: "2026-01-04" });
+    expect(mapPayRate({ type: "Salary", payRate: 3000, annualPayRate: 78000 }, "e")).toMatchObject({ payType: "salary", hourlyRate: 37.5 });
+    expect(mapPayRate({ type: "Unpaid", payRate: 0 }, "e")).toBeNull();
+    expect(mapPayRate({ type: "Hourly", payRate: 20, effectiveEndDate: "2020-01-01" }, "e")).toBeNull();
   });
   it("normalizes status", () => {
     expect(normalizeStatus("Terminated")).toBe("terminated");

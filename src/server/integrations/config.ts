@@ -27,10 +27,9 @@ export function appBaseUrl(): string {
 
 export function getPaycorConfig() {
   const m = mode("PAYCOR_MODE", ["demo", "sandbox", "production"] as const, "demo");
-  // Paycor documents apis.paycor.com; some Paycor material says sandbox uses
-  // the same host and routes by subscription key, other material lists
-  // apis-sandbox.paycor.com. Configurable until confirmed in the portal.
-  const apiBaseUrl = (env("PAYCOR_API_BASE_URL") ?? "https://apis.paycor.com").replace(/\/+$/, "");
+  // Verified in Paycor's guides: production https://apis.paycor.com,
+  // sandbox https://apis-sandbox.paycor.com (token at /sts/v1/common/token on each).
+  const apiBaseUrl = (env("PAYCOR_API_BASE_URL") ?? (m === "production" ? "https://apis.paycor.com" : "https://apis-sandbox.paycor.com")).replace(/\/+$/, "");
   return {
     mode: m,
     environment: m === "demo" ? ("mock" as const) : m,

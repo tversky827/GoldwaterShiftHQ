@@ -78,21 +78,25 @@ The app keeps them apart with the setting `PAYCOR_MODE` (`sandbox` or `productio
 
 **Rule: ask only for what's needed, and read-only.** We don't need any "write", "create", "update", or "delete" permissions.
 
-Paycor's exact permission names will be shown in your portal. We'll map them together. **What we need:**
+In AppCreator these are called **Data Access** items. The names below are exactly as Paycor's API documentation lists them (verified 2026-11-25). **Tick only these:**
 
-| Need | Why | Priority |
+| Tick this Data Access item | Why | Priority |
 |---|---|---|
-| Legal entity / company information (read) | Know which company each employee belongs to | Required |
-| Employee identity / demographics: name, employee number (read) | Identity and matching to AOD | Required |
-| Employment status, hire and termination dates (read) | Who is active, terminated, or on leave | Required |
-| Position / job title, department (read) | Job classification for scheduling | Required |
-| Work location (read) | Home facility | Required |
-| Payroll hours / earnings (read) | Later: comparing payroll hours to scheduled and clocked hours | Optional, request later |
-| Anything with "write", "update", "payroll submit", banking, SSN, tax | **Not needed. Don't request.** | ✗ |
+| **View Legal Entity Basic Information** | Know which company each employee belongs to; used by "Test connection" | Required |
+| **View Legal Entity Employees** | Names, employee numbers, badge numbers | Required |
+| **View Legal Entity Employees Employment Dates** | Hire and termination dates | Required |
+| **View Legal Entity Employees Status** | Active, on leave, terminated; full-time or part-time | Required |
+| **View Legal Entity Employees Position** | Job title (CNA, RN, LPN…) | Required |
+| **View Legal Entity Employees Work Location** | Home facility | Required |
+| **View Legal Entity Departments Information** | Department names | Recommended |
+| **View Legal Entity Payrates** | Pay rates (you approved this; see "Later: pay rates" below) | Optional, can add later |
+| Anything with "Create", "Update", "Add", "Delete", SSN, Birth Date, Direct Deposit, Taxes | **Not needed. Don't tick.** | ✗ |
+
+If you'd like event notifications later (Paycor telling us immediately when someone is hired or terminated), those are set up on the **Event Subscriptions** tab *before* activating. We don't need them yet.
 
 Also look on the **General** tab for the app's **scope name**. We'll store it as `PAYCOR_APP_SCOPE`. The app automatically adds `offline_access`, which lets Paycor issue a refresh token.
 
-**Tell Claude:** the list of permission/scope names the portal offers (names only). Claude will tell you exactly which boxes to tick.
+**Tell Claude:** "Data Access saved," or the names of any items above that you can't find.
 
 ---
 
@@ -193,7 +197,7 @@ After the basics work, we'll look in the portal's **Explore** section for payrol
 You approved importing pay rates. The app stores only the **current base hourly rate** (salaried pay is converted to an hourly equivalent). Only Corporate Admins can see it by default.
 
 To turn it on with real data:
-1. In the portal's **Explore** section, look for an employee **pay rates** endpoint and the permission (scope) it needs. Tell Claude the names you see.
-2. Add that permission to the app in AppCreator, then reconnect each legal entity, since new permissions require re-approval.
+1. In AppCreator, tick the Data Access item **View Legal Entity Payrates** (if you didn't already).
+2. Reconnect each legal entity, since new permissions require re-approval.
 3. Set `PAYCOR_IMPORT_PAY_RATES=true` in secure settings.
 4. Run **Sync now**. The employee profile will show a **Compensation** card for Corporate Admins.
