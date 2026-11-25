@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# ---- SECRETS: never commit these ----
+.env
+.env.local
+.env.*.local
+.env.sandbox
+.env.production
+!.env.example
+
+# Local integration data (tokens, synced employee records). Contains PII.
+/data/
