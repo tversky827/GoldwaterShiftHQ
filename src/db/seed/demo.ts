@@ -6,7 +6,7 @@
  *
  * Refuses to run when APP_ENV=production.
  */
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, gt, isNotNull, ne } from "drizzle-orm";
 import type { Db } from "@/db";
 import {
   credentialTypes,
@@ -221,7 +221,10 @@ export async function seedDemo(db: Db, opts: { password?: string; now?: Date; sc
     ),
   });
 
-  if (opts.schedules !== false) await seedDemoSchedules(db, orgId, facilityByCode.get("MGR")!.id);
+  if (opts.schedules !== false) {
+    await seedDemoSchedules(db, orgId, facilityByCode.get("MGR")!.id);
+    await seedDemoMarketplace(db, orgId, facilityByCode.get("MGR")!.id);
+  }
 
   return { organizationId: orgId, created: true };
 }
@@ -263,4 +266,43 @@ async function seedDemoSchedules(db: Db, orgId: string, facilityId: string) {
       }
     }
   }
+}
+
+/**
+ * Demonstration marketplace activity at one facility, created through the
+ * real services: a handful of published open shifts (one with an incentive),
+ * one that reviews every pick-up and that the demo employee has requested,
+ * and a callout that has been posted for coverage.
+ */
+async function seedDemoMarketplace(db: Db, orgId: string, facilityId: string) {
+  const { loadActor } = await import("@/server/rbac/access");
+  const { publishOpenShifts, unfilledShifts } = await import("@/server/marketplace/listings");
+  const { claimShift } = await import("@/server/marketplace/claims");
+  const { recordCallout } = await import("@/server/marketplace/callouts");
+  const { marketplaceListings, positions, shiftAssignments, shifts } = await import("@/db/schema");
+  const [corpUser] = await db.select().from(users).where(eq(users.email, "corporate@demo.test"));
+  const [empUser] = await db.select().from(users).where(eq(users.email, "employee@demo.test"));
+  const corp = (await loadActor(db, corpUser.id))!;
+  const emp = (await loadActor(db, empUser.id))!;
+  const ctx = { organizationId: orgId, actorUserId: corp.userId };
+  const soon = new Date(Date.now() + 6 * 3_600_000);
+  const open = (await unfilledShifts(db, corp, facilityId, 10)).filter((s) => s.startsAt > soon);
+  const pick = [...open.filter((s) => s.positionCode === "CNA").slice(0, 5), ...open.filter((s) => s.positionCode !== "CNA").slice(0, 4)];
+  if (!pick.length) return;
+  await publishOpenShifts(db, corp, ctx, { shiftIds: pick.slice(1).map((s) => s.id) });
+  if (pick[2]) await db.update(marketplaceListings).set({ incentiveText: "$5/hr weekend bonus" }).where(eq(marketplaceListings.shiftId, pick[2].id));
+  const review = await publishOpenShifts(db, corp, ctx, { shiftIds: [pick[0].id], requiresApproval: true });
+  if (review.listingIds[0]) await claimShift(db, emp, { organizationId: orgId, actorUserId: emp.userId }, review.listingIds[0]).catch(() => null);
+
+  // A callout on an upcoming CNA shift (not the demo employee's).
+  const [cna] = await db.select().from(positions).where(and(eq(positions.organizationId, orgId), eq(positions.code, "CNA")));
+  const later = new Date(Date.now() + 12 * 3_600_000);
+  const [target] = await db
+    .select({ id: shiftAssignments.id, employeeId: shiftAssignments.employeeId })
+    .from(shiftAssignments)
+    .innerJoin(shifts, eq(shifts.id, shiftAssignments.shiftId))
+    .where(and(eq(shiftAssignments.facilityId, facilityId), eq(shiftAssignments.status, "assigned"), eq(shifts.positionId, cna.id), gt(shiftAssignments.startsAt, later), ne(shiftAssignments.employeeId, emp.employeeId!)))
+    .orderBy(asc(shiftAssignments.startsAt))
+    .limit(1);
+  if (target) await recordCallout(db, corp, ctx, target.id, "Called in sick (demonstration)").catch(() => null);
 }

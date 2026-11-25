@@ -9,6 +9,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
     hasOrgWide(actor, "users.view") && { href: "/settings/users", label: "Users & access" },
     hasOrgWide(actor, "roles.manage") && { href: "/settings/roles", label: "Roles" },
     can(actor, "rules.view") && { href: "/settings/rules", label: "Rules" },
+    can(actor, "marketplace.manage") && { href: "/settings/marketplace", label: "Marketplace" },
     hasOrgWide(actor, "integrations.view") && { href: "/settings/integrations", label: "Integrations" },
     can(actor, "facilities.view") && { href: "/settings/classifications", label: "Classifications" },
     can(actor, "audit.view") && { href: "/settings/audit", label: "Audit log" },

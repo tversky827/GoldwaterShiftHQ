@@ -122,6 +122,11 @@ export async function withdrawListing(db: Db, actor: Actor, ctx: AuditContext, l
 
 /* ------------------------------------------------------------- staff views */
 
+/** Does the actor have any marketplace duty (at this facility, or anywhere)? */
+export function hasMarketplaceAccess(actor: Actor, facilityId?: string) {
+  return (["marketplace.manage", "claims.review", "callouts.manage", "swaps.approve"] as const).some((p) => can(actor, p, facilityId ? { facilityId } : undefined));
+}
+
 /** Upcoming shifts at a facility with open slots, and whether each is listed. */
 export async function unfilledShifts(db: Db, actor: Actor, facilityId: string, days = 14, now = new Date()) {
   if (!can(actor, "schedules.view", { facilityId })) return [];

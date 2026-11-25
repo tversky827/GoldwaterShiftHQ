@@ -1,10 +1,11 @@
-import { Building2, CalendarDays, LayoutGrid, LogOut, Settings, Smartphone, Users } from "lucide-react";
+import { Building2, CalendarDays, CalendarPlus, LayoutGrid, LogOut, Settings, Smartphone, Users } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { BrandMark, DemoBanner } from "@/components/brand";
 import { NavLink } from "@/components/nav-link";
 import { Avatar } from "@/components/ui/primitives";
 import { requireStaff } from "@/server/context";
+import { hasMarketplaceAccess } from "@/server/marketplace/listings";
 import { can, hasOrgWide, type Actor } from "@/server/rbac/access";
 import { signOutAction } from "../(public)/actions";
 
@@ -12,9 +13,10 @@ function navFor(actor: Actor) {
   const items: { href: string; label: string; icon: ReactNode }[] = [];
   if (can(actor, "facilities.view")) items.push({ href: "/overview", label: "Overview", icon: <LayoutGrid /> });
   if (can(actor, "schedules.view")) items.push({ href: "/schedule", label: "Schedule", icon: <CalendarDays /> });
+  if (hasMarketplaceAccess(actor)) items.push({ href: "/open-shifts", label: "Open shifts", icon: <CalendarPlus /> });
   if (can(actor, "facilities.view")) items.push({ href: "/facilities", label: "Facilities", icon: <Building2 /> });
   if (can(actor, "employees.view")) items.push({ href: "/employees", label: "Employees", icon: <Users /> });
-  if (hasOrgWide(actor, "users.view") || hasOrgWide(actor, "integrations.view") || can(actor, "audit.view") || can(actor, "rules.view")) items.push({ href: "/settings", label: "Settings", icon: <Settings /> });
+  if (hasOrgWide(actor, "users.view") || hasOrgWide(actor, "integrations.view") || can(actor, "audit.view") || can(actor, "rules.view") || can(actor, "marketplace.manage")) items.push({ href: "/settings", label: "Settings", icon: <Settings /> });
   return items;
 }
 

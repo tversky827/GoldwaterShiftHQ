@@ -66,7 +66,7 @@ export async function swapOptions(db: Db, actor: Actor, myAssignmentId: string, 
   const employeeId = selfEmployee(actor);
   const mine = await assignmentInfo(db, myAssignmentId);
   if (!mine || mine.a.employeeId !== employeeId || mine.a.status !== "assigned" || mine.a.startsAt <= now) throw new NotFoundError("Shift");
-  const until = new Date(Math.max(mine.a.startsAt.getTime(), now.getTime()) + 21 * 86_400_000);
+  const until = new Date(Math.max(mine.a.startsAt.getTime(), now.getTime()) + 14 * 86_400_000);
   const rows = await db
     .select({ id: shiftAssignments.id, startsAt: shiftAssignments.startsAt, endsAt: shiftAssignments.endsAt, employeeId: shiftAssignments.employeeId, first: employees.firstName, last: employees.lastName, preferred: employees.preferredName })
     .from(shiftAssignments)
@@ -81,11 +81,12 @@ export async function swapOptions(db: Db, actor: Actor, myAssignmentId: string, 
         ne(shiftAssignments.shiftId, mine.shift.id),
         gt(shiftAssignments.startsAt, now),
         lt(shiftAssignments.startsAt, until),
-        sql`not exists (select 1 from ${shiftAssignments} me where me.shift_id = ${shiftAssignments.shiftId} and me.employee_id = ${employeeId} and me.status = 'assigned')`,
+        // Leave out shifts that clash with one of my OTHER shifts (the rules engine re-checks everything on request).
+        sql`not exists (select 1 from ${shiftAssignments} me where me.employee_id = ${employeeId} and me.status = 'assigned' and me.id <> ${mine.a.id} and me.starts_at < ${shiftAssignments.endsAt} and me.ends_at > ${shiftAssignments.startsAt})`,
       ),
     )
     .orderBy(asc(shiftAssignments.startsAt))
-    .limit(60);
+    .limit(25);
   return {
     mine: { id: mine.a.id, startsAt: mine.a.startsAt, endsAt: mine.a.endsAt, facilityName: mine.facility.name, facilityTimezone: mine.facility.timezone, positionCode: mine.positionCode },
     // Colleagues are shown by first name and last initial only.
@@ -220,6 +221,7 @@ export async function mySwaps(db: Db, actor: Actor) {
       id: r.id,
       status: r.status,
       incoming: r.targetEmployeeId === employeeId,
+      requesterAssignmentId: r.requesterAssignmentId,
       note: r.note,
       requesterName: `${mine.first} ${mine.last.slice(0, 1)}.`,
       targetName: theirs ? `${theirs.first} ${theirs.last.slice(0, 1)}.` : "",

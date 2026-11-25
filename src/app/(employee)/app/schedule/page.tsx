@@ -10,14 +10,19 @@ import { ShiftRow } from "../shift-card";
 export const metadata = { title: "My schedule" };
 export const dynamic = "force-dynamic";
 
-export default async function MySchedulePage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+export default async function MySchedulePage({ searchParams }: { searchParams: Promise<{ view?: string; notice?: string }> }) {
   const actor = await requireActor();
-  const { view } = await searchParams;
+  const { view, notice } = await searchParams;
   const past = view === "past";
   const rows = await mySchedule(await getDb(), actor, { past, limit: 60 });
   return (
     <div>
       <h1 className="text-[32px] font-semibold tracking-tight">My schedule</h1>
+      {notice === "callout" && (
+        <div role="status" className="mt-4 rounded-2xl bg-positive-soft px-4 py-3 text-[14px] text-positive">
+          Thanks for letting us know. Your manager has been notified and the shift is posted so a colleague can pick it up.
+        </div>
+      )}
       <div className="mt-4 inline-flex rounded-full bg-fill p-1 text-[14px]">
         {[
           { k: "upcoming", l: "Upcoming" },
@@ -33,7 +38,7 @@ export default async function MySchedulePage({ searchParams }: { searchParams: P
       ) : (
         <div className="mt-4 divide-y divide-line">
           {rows.map((s) => (
-            <ShiftRow key={s.id} s={s} />
+            <ShiftRow key={s.id} s={s} href={past ? undefined : `/app/schedule/${s.id}`} />
           ))}
         </div>
       )}
