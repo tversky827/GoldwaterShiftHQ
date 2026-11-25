@@ -1,4 +1,4 @@
-import { Building2, CalendarDays, CalendarPlus, LayoutGrid, LogOut, Settings, Smartphone, Users } from "lucide-react";
+import { Building2, CalendarDays, CalendarPlus, LayoutGrid, Network, LogOut, Settings, Smartphone, Users } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { BrandMark, DemoBanner } from "@/components/brand";
@@ -7,6 +7,7 @@ import { Avatar } from "@/components/ui/primitives";
 import { requireStaff } from "@/server/context";
 import { kickBackgroundJobs } from "@/server/marketplace/background";
 import { hasMarketplaceAccess } from "@/server/marketplace/listings";
+import { canSeePool } from "@/server/pool";
 import { can, hasOrgWide, type Actor } from "@/server/rbac/access";
 import { signOutAction } from "../(public)/actions";
 
@@ -15,6 +16,7 @@ function navFor(actor: Actor) {
   if (can(actor, "facilities.view")) items.push({ href: "/overview", label: "Overview", icon: <LayoutGrid /> });
   if (can(actor, "schedules.view")) items.push({ href: "/schedule", label: "Schedule", icon: <CalendarDays /> });
   if (hasMarketplaceAccess(actor)) items.push({ href: "/open-shifts", label: "Open shifts", icon: <CalendarPlus /> });
+  if (canSeePool(actor)) items.push({ href: "/pool", label: "Regional pool", icon: <Network /> });
   if (can(actor, "facilities.view")) items.push({ href: "/facilities", label: "Facilities", icon: <Building2 /> });
   if (can(actor, "employees.view")) items.push({ href: "/employees", label: "Employees", icon: <Users /> });
   items.push({ href: "/settings", label: "Settings", icon: <Settings /> });

@@ -305,4 +305,20 @@ async function seedDemoMarketplace(db: Db, orgId: string, facilityId: string) {
     .orderBy(asc(shiftAssignments.startsAt))
     .limit(1);
   if (target) await recordCallout(db, corp, ctx, target.id, "Called in sick (demonstration)").catch(() => null);
+
+  // Regional pool: place a few pool staff into still-open shifts (through the rules engine).
+  const { placePoolEmployee, poolCandidates } = await import("@/server/pool");
+  const [poolUser] = await db.select().from(users).where(eq(users.email, "pool@demo.test"));
+  const poolMgr = (await loadActor(db, poolUser.id))!;
+  const pctx = { organizationId: orgId, actorUserId: poolMgr.userId };
+  const stillOpen = (await unfilledShifts(db, corp, facilityId, 7)).filter((s) => s.startsAt > soon && !pick.some((p) => p.id === s.id));
+  let placed = 0;
+  for (const s of stillOpen) {
+    if (placed >= 4) break;
+    const { candidates } = await poolCandidates(db, poolMgr, s.id).catch(() => ({ candidates: [] as { employeeId: string; outcome: string }[] }));
+    const c = candidates.find((x) => x.outcome === "ok");
+    if (!c) continue;
+    const r = await placePoolEmployee(db, poolMgr, pctx, { shiftId: s.id, employeeId: c.employeeId }).catch(() => null);
+    if (r?.status === "assigned") placed++;
+  }
 }

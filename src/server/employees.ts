@@ -197,7 +197,9 @@ export async function setRegionalPool(db: Db, actor: Actor, ctx: AuditContext, e
 }
 
 export async function authorizeFacility(db: Db, actor: Actor, ctx: AuditContext, employeeId: string, facilityId: string, reason: string) {
-  assertCan(actor, "employees.authorize_facility", { facilityId });
+  // Pool-scoped grants (pool manager) cover regional pool employees at any facility.
+  const [who] = await db.select({ pool: employees.isRegionalPool }).from(employees).where(eq(employees.id, employeeId));
+  assertCan(actor, "employees.authorize_facility", { facilityId, pool: !!who?.pool });
   if (reason.trim().length < 3) throw new AppError("Please give a short reason.");
   await db.transaction(async (tx) => {
     const [e] = await tx.select().from(employees).where(and(eq(employees.id, employeeId), eq(employees.organizationId, actor.organizationId)));
@@ -218,7 +220,8 @@ export async function authorizeFacility(db: Db, actor: Actor, ctx: AuditContext,
 export async function revokeFacilityAuthorization(db: Db, actor: Actor, ctx: AuditContext, authorizationId: string, reason: string) {
   const [a] = await db.select().from(employeeFacilityAuthorizations).where(eq(employeeFacilityAuthorizations.id, authorizationId));
   if (!a || a.revokedAt) throw new NotFoundError("Authorization");
-  assertCan(actor, "employees.authorize_facility", { facilityId: a.facilityId });
+  const [who] = await db.select({ pool: employees.isRegionalPool }).from(employees).where(eq(employees.id, a.employeeId));
+  assertCan(actor, "employees.authorize_facility", { facilityId: a.facilityId, pool: !!who?.pool });
   await db.transaction(async (tx) => {
     await tx.update(employeeFacilityAuthorizations).set({ revokedAt: new Date(), revokedBy: actor.userId }).where(eq(employeeFacilityAuthorizations.id, authorizationId));
     await audit(tx, ctx, { action: "employee.facility_revoked", entityType: "employee", entityId: a.employeeId, facilityId: a.facilityId, reason });

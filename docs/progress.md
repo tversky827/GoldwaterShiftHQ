@@ -67,4 +67,16 @@
 **Not done yet / notes**
 - Email/text vendor accounts are not created yet (Guide 08 walks through it). Phone push notifications are not built.
 
-## Next: Phase 4, Regional pool dashboard
+## Phase 4: Regional pool (complete)
+
+**Built and tested**
+- **Regional pool page** (`/pool`, "Regional pool" in the sidebar) for the pool manager and corporate (every facility) and for regional directors and facility leaders with pool access (their own facilities only).
+  - **Where help is needed:** unfilled shifts in the next 7 days for positions the pool covers, with how many pool staff are qualified *and* authorized for each, and whether the shift is already posted.
+  - **Find pool staff:** for any shift, every eligible pool member checked against the full rules engine and ranked (good fit → note → needs approval → not allowed, then fewest hours). One click places them. Exceptions follow the normal rules (approval or override with an explanation, or a pending approval for the facility). The employee and the facility's schedulers are notified (the employee by text too, if they opted in).
+  - **Pool staff:** one row per person (never duplicated per facility): authorized facilities, hours this week **across every facility** (clocked and scheduled, against the overtime threshold or their personal limit), hours left, next shift, and credential alerts. This week / next week.
+  - **Add to pool:** pick an employee, tick the facilities they may work at, give a reason: one step, fully audited.
+- **Permissions:** a pool manager can place *regional pool* employees at any facility and manage their facility authorizations (fixed: this was previously refused), but can't place non-pool staff. Schedulers keep placing anyone at their own facility.
+
+**Tests:** 6 new pool tests (107 in total).
+
+## Next: Phase 5, Reporting and exports

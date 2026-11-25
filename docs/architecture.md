@@ -132,7 +132,7 @@ All tables have `id uuid pk default gen_random_uuid()`, `created_at`, `updated_a
 | Overview | Corporate, Regional, Facility admins | 1 (basic) → 5 (analytics) |
 | Schedule | Schedulers, DON, Dept managers, Facility admins | 2 |
 | Open Shifts (publish, review pick-ups and swaps, callouts) | Schedulers, DON, Facility admins (anyone with a marketplace permission) | 3 ✓ |
-| Regional Pool | Pool manager, Corporate | 4 |
+| Regional Pool | Pool manager, Corporate (all facilities); Regional director and facility leaders with `pool.view` (their facilities) | 4 ✓ |
 | Employees | All staff roles (scoped) | 1 |
 | Facilities | Corporate admin (all); facility admins see their own | 1 |
 | Reports | Corporate, Regional, Facility admins | 5 |
@@ -177,6 +177,6 @@ Step-by-step owner guide: `docs/integrations/02-paycor-setup.md`.
 | **1. Foundation** | Architecture, full schema + migrations, auth + invitations, RBAC + scoping, audit log, facility management (facilities, departments, units, classifications, shift templates), employee directory + profiles + facility authorizations, Paycor framework on Postgres (manual + scheduled sync, history, duplicate detection, reconciliation, deactivation handling), PWA shell, demo seed | 1, 2 (status), 15, 16, 17, 20 |
 | 2. Scheduling | Staffing budget editor (per-day matrices, template copy between facilities), shift generation from budgets, weekly calendar with drag-and-drop, coverage (4/5), copy week / repeat / multi-week, availability, rules engine (warning / approval / block, overrides with reason), cross-facility hours | 3, 4, 5, 9, 10, 18 |
 | **3. Marketplace** | Publishing (single, bulk, scheduled, auto, expiry, withdraw), employee app tabs, claiming with atomic assignment, approval workflows, waitlists, swaps, callouts + escalation, notifications (in-app, email, SMS, push) | 2, 6, 7, 11, 12, 13, 14 |
-| 4. Regional pool | Pool classification, authorizations, consolidated hours, pool dashboard | 8, 9 |
+| **4. Regional pool** | Pool classification, authorizations, consolidated hours, pool dashboard | 8, 9 |
 | 5. Reporting | Corporate dashboard, budget vs scheduled vs actual, overtime, fill rate, time-to-fill, exports (CSV/Excel) | 15, 18 |
 | 6. Hardening | RLS policies, security review, concurrency load tests, sync failure drills, mobile QA, backups/restore runbook, Sentry | 12, 19, 20 |

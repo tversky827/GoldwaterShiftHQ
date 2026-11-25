@@ -39,27 +39,32 @@ export async function assignEmployee(
   db: Db,
   actor: Actor,
   ctx: AuditContext,
-  input: { shiftId: string; employeeId: string; explanation?: string; via?: "scheduler" | "auto" },
+  input: { shiftId: string; employeeId: string; explanation?: string; via?: "scheduler" | "auto"; pool?: boolean },
 ): Promise<AssignResult> {
   const { shift, facility } = await shiftFacility(db, input.shiftId);
   if (facility.organizationId !== actor.organizationId) throw new NotFoundError("Shift");
-  assertCan(actor, "schedules.manage", { facilityId: facility.id, departmentId: shift.departmentId ?? undefined });
+  const target = { facilityId: facility.id, departmentId: shift.departmentId ?? undefined };
+  if (!can(actor, "schedules.manage", target)) {
+    // A pool manager may place REGIONAL POOL employees at any facility.
+    const [emp] = input.pool ? await db.select({ isPool: employees.isRegionalPool }).from(employees).where(eq(employees.id, input.employeeId)) : [];
+    if (!(emp?.isPool && can(actor, "pool.manage", { pool: true }))) assertCan(actor, "schedules.manage", target);
+  }
 
   const evaluation = await evaluateAssignment(db, { employeeId: input.employeeId, shiftId: input.shiftId });
   const { hardBlocks, overridableBlocks, approvals, warnings } = blockingResults(evaluation);
   const explanation = input.explanation?.trim() ?? "";
-  const target = { facilityId: facility.id };
+  const ruleTarget = { facilityId: facility.id };
 
   if (hardBlocks.length) return { status: "blocked", evaluation, message: hardBlocks.map((r) => r.message).join(" ") };
-  if (overridableBlocks.length && !(can(actor, "rules.override", target) && explanation.length >= 5)) {
+  if (overridableBlocks.length && !(can(actor, "rules.override", ruleTarget) && explanation.length >= 5)) {
     return {
       status: "needs_override",
       evaluation,
-      message: can(actor, "rules.override", target) ? "An override with an explanation is required." : `Blocked: ${overridableBlocks.map((r) => r.message).join(" ")} Only someone with override permission can assign this.`,
+      message: can(actor, "rules.override", ruleTarget) ? "An override with an explanation is required." : `Blocked: ${overridableBlocks.map((r) => r.message).join(" ")} Only someone with override permission can assign this.`,
     };
   }
   if (approvals.length) {
-    const canApprove = can(actor, "assignments.approve", target);
+    const canApprove = can(actor, "assignments.approve", ruleTarget);
     if (canApprove && explanation.length < 5) return { status: "needs_approval_reason", evaluation, message: "This assignment needs approval. Add a short explanation to approve it now." };
     if (!canApprove) {
       const id = await createApprovalRequest(db, actor, ctx, { shiftId: shift.id, facilityId: facility.id, employeeId: input.employeeId, evaluation, note: explanation });

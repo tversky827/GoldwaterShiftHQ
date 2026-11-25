@@ -23,7 +23,7 @@ export type Channel = "in_app" | ExternalChannel;
 export type { ExternalChannel, NotificationProvider };
 
 /** Categories worth a text message (time-sensitive). Everything else is in-app and email only. */
-export const SMS_CATEGORIES = new Set(["callout_coverage", "callout", "waitlist_offer", "claim_decided", "swap_request", "swap_update"]);
+export const SMS_CATEGORIES = new Set(["callout_coverage", "callout", "waitlist_offer", "claim_decided", "swap_request", "swap_update", "pool_assignment"]);
 /** Preference rows with this category apply to every category of a channel. */
 export const ALL_CATEGORIES = "all";
 
@@ -156,6 +156,8 @@ export async function markRead(db: Db, actor: Actor, ids?: string[]) {
 function linkFor(n: { category: string; userId: string | null }, isEmployee: boolean) {
   const base = appBaseUrl();
   if (["claim_review", "swap_review", "callout", "approval_requested"].includes(n.category)) return `${base}/open-shifts`;
+  if (n.category === "pool_placement") return `${base}/schedule`;
+  if (n.category === "pool_assignment") return `${base}/app/schedule`;
   if (["open_shift", "callout_coverage", "waitlist_offer"].includes(n.category)) return `${base}/app/shifts`;
   return `${base}${isEmployee ? "/app" : "/overview"}`;
 }
