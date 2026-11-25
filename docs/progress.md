@@ -59,13 +59,12 @@
 - **Waitlists:** when a shift fills, employees can join its waitlist. When an opening is freed (removal, callout), the listing reopens and waitlisted employees are offered it.
 - **Shift swaps:** the employee picks a colleague's shift (same facility and position, next 14 days; colleagues shown as first name + last initial), the colleague accepts, a manager (`swaps.approve`) approves, and both assignments change in one transaction after re-checking every rule for both people.
 - **Callouts:** "I can't make it" in the employee app, or "Record callout" for managers. The shift is posted immediately (urgent) to the facility's qualified staff and managers are notified. If nobody picks it up, it **escalates**: after 30 minutes to authorized staff from other facilities and the pool, then after 60 more to leadership. Times are configurable. Covered or uncovered status is tracked.
-- **Notifications:** in-app, grouped (a bulk publish sends one summary per person). Email, SMS and push are wired through a provider interface and stay off until a vendor is chosen.
-- **Background job** `/api/cron/marketplace` (every 10 minutes in `vercel.json`): opens scheduled listings, expires old ones, auto-publishes, escalates callouts, and delivers queued notifications.
+- **Notifications:** in-app, grouped (a bulk publish sends one summary per person). **Email** (your own mailbox over SMTP, e.g. Microsoft 365, or SendGrid) and **text messages** (Twilio) can be switched on separately; see Guide 08. Texts are only for urgent updates and only to people who added a number and agreed. Everyone manages their own choices (Profile → Notifications / Settings → My notifications).
+- **Background work** (opening scheduled listings, closing old ones, auto-publishing, escalating callouts, sending email/texts) runs automatically while people use the app, at most every 2 minutes, and also through `/api/cron/marketplace` when the hosting service provides a scheduler. Nothing needs to be set up for it.
 
-**Tests:** 15 new marketplace tests (90 in total).
+**Tests:** 15 marketplace tests, 8 notification tests, and Paycor mapping tests against the published API specification (101 in total).
 
 **Not done yet / notes**
-- Email/SMS/push vendors: the owner needs to choose them (e.g. an email service and an SMS service). Until then only in-app notifications are sent.
-- Vercel runs a cron job every 10 minutes only on paid plans; on the free plan it runs once a day.
+- Email/text vendor accounts are not created yet (Guide 08 walks through it). Phone push notifications are not built.
 
 ## Next: Phase 4, Regional pool dashboard

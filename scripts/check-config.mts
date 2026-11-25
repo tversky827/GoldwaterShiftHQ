@@ -21,4 +21,7 @@ console.log(`  Missing for this mode:      ${missingPaycorSettings(p).join(", ")
 console.log(`\nAttendance on Demand mode: ${a.mode} (${a.environment})`);
 for (const k of ["AOD_HOSTNAME", "AOD_ACCESS_ACCOUNT", "AOD_ACCESS_PASSWORD"]) console.log(`  ${k.padEnd(28)} ${show(k)}`);
 console.log(`  Missing for this mode:      ${missingAodSettings(a).join(", ") || "nothing"}`);
+console.log(`\nNotifications: in-app always on`);
+console.log(`  Email:  ${process.env.NOTIFY_EMAIL_PROVIDER || "off"}${process.env.NOTIFY_EMAIL_PROVIDER === "smtp" ? `  (SMTP_HOST ${show("SMTP_HOST")}, SMTP_USER ${show("SMTP_USER")}, SMTP_PASSWORD ${show("SMTP_PASSWORD")})` : process.env.NOTIFY_EMAIL_PROVIDER === "sendgrid" ? `  (SENDGRID_API_KEY ${show("SENDGRID_API_KEY")})` : ""}${process.env.NOTIFY_EMAIL_PROVIDER ? `  NOTIFY_EMAIL_FROM ${show("NOTIFY_EMAIL_FROM")}` : ""}`);
+console.log(`  Texts:  ${process.env.NOTIFY_SMS_PROVIDER || "off"}${process.env.NOTIFY_SMS_PROVIDER === "twilio" ? `  (TWILIO_ACCOUNT_SID ${show("TWILIO_ACCOUNT_SID")}, TWILIO_AUTH_TOKEN ${show("TWILIO_AUTH_TOKEN")}, sender ${process.env.TWILIO_FROM_NUMBER || process.env.TWILIO_MESSAGING_SERVICE_SID ? "set" : "EMPTY"})` : ""}`);
 console.log(`\nDatabase: ${process.env.DATABASE_URL ? "DATABASE_URL set" : "embedded (local ./data/pglite)"}   Encryption key: ${show("APP_ENCRYPTION_KEY")}\n`);

@@ -13,6 +13,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
     hasOrgWide(actor, "integrations.view") && { href: "/settings/integrations", label: "Integrations" },
     can(actor, "facilities.view") && { href: "/settings/classifications", label: "Classifications" },
     can(actor, "audit.view") && { href: "/settings/audit", label: "Audit log" },
+    { href: "/settings/notifications", label: "My notifications" },
   ].filter(Boolean) as { href: string; label: string }[];
   return (
     <div>

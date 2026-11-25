@@ -5,6 +5,7 @@ import { BrandMark, DemoBanner } from "@/components/brand";
 import { NavLink } from "@/components/nav-link";
 import { Avatar } from "@/components/ui/primitives";
 import { requireStaff } from "@/server/context";
+import { kickBackgroundJobs } from "@/server/marketplace/background";
 import { hasMarketplaceAccess } from "@/server/marketplace/listings";
 import { can, hasOrgWide, type Actor } from "@/server/rbac/access";
 import { signOutAction } from "../(public)/actions";
@@ -16,7 +17,7 @@ function navFor(actor: Actor) {
   if (hasMarketplaceAccess(actor)) items.push({ href: "/open-shifts", label: "Open shifts", icon: <CalendarPlus /> });
   if (can(actor, "facilities.view")) items.push({ href: "/facilities", label: "Facilities", icon: <Building2 /> });
   if (can(actor, "employees.view")) items.push({ href: "/employees", label: "Employees", icon: <Users /> });
-  if (hasOrgWide(actor, "users.view") || hasOrgWide(actor, "integrations.view") || can(actor, "audit.view") || can(actor, "rules.view") || can(actor, "marketplace.manage")) items.push({ href: "/settings", label: "Settings", icon: <Settings /> });
+  items.push({ href: "/settings", label: "Settings", icon: <Settings /> });
   return items;
 }
 
@@ -27,6 +28,7 @@ function roleSummary(actor: Actor) {
 
 export default async function StaffLayout({ children }: { children: ReactNode }) {
   const actor = await requireStaff();
+  kickBackgroundJobs();
   const nav = navFor(actor);
   return (
     <div className="min-h-dvh">

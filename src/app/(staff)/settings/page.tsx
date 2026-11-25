@@ -8,5 +8,6 @@ export default async function SettingsIndex() {
   if (hasOrgWide(actor, "integrations.view")) redirect("/settings/integrations");
   if (can(actor, "rules.view")) redirect("/settings/rules");
   if (can(actor, "audit.view")) redirect("/settings/audit");
-  redirect("/settings/classifications");
+  if (can(actor, "facilities.view")) redirect("/settings/classifications");
+  redirect("/settings/notifications");
 }

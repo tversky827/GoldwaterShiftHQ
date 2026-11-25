@@ -107,6 +107,10 @@ export const users = pgTable(
     failedLoginCount: integer().notNull().default(0),
     lockedUntil: ts(),
     isDemo: boolean().notNull().default(false),
+    /** Mobile number for text messages, E.164 (e.g. +15555550123). Entered by the user. */
+    mobilePhone: text(),
+    /** When the user agreed to receive text messages. Texts are never sent without it. */
+    smsConsentAt: ts(),
     ...timestamps,
     ...actorCols,
   },

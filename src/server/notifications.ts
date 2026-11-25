@@ -1,39 +1,33 @@
 /**
  * Notifications.
  *
- * In-app notifications are always written. Email, SMS and push are queued
- * only when (a) a provider is configured for that channel and (b) the user
- * hasn't turned that category/channel off. Delivery happens in a background
- * job (`deliverPending`). No vendor is hard-coded: providers implement the
- * small `NotificationProvider` interface and are registered by environment
- * variable once the owner picks a vendor.
+ * In-app notifications are always written. Email and text messages are queued
+ * only when a provider is configured (see notify-providers.ts) and the person
+ * hasn't turned that channel off. Texts additionally need a mobile number and
+ * the person's recorded consent, and are used only for time-sensitive
+ * categories. Delivery happens in `deliverPending` (background job), which
+ * claims each message before sending so it is never sent twice.
  */
 import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { Db, Tx } from "@/db";
-import { notificationPreferences, notifications, rolePermissions, userRoles, users } from "@/db/schema";
+import { notificationPreferences, notifications, organizations, rolePermissions, userRoles, users } from "@/db/schema";
+import { audit, type AuditContext } from "./audit";
+import { AppError } from "./errors";
+import { appBaseUrl } from "./integrations/config";
 import { log } from "./log";
+import { providerFromEnv, type ExternalChannel, type NotificationProvider } from "./notify-providers";
 import type { Actor } from "./rbac/access";
 import type { Permission } from "./rbac/catalog";
 
-export type Channel = "in_app" | "email" | "sms" | "push";
-export type ExternalChannel = Exclude<Channel, "in_app">;
+export type Channel = "in_app" | ExternalChannel;
+export type { ExternalChannel, NotificationProvider };
 
-export interface NotificationProvider {
-  channel: ExternalChannel;
-  name: string;
-  send(to: { userId: string; email: string; displayName: string }, msg: { title: string; body: string; data: unknown }): Promise<void>;
-}
+/** Categories worth a text message (time-sensitive). Everything else is in-app and email only. */
+export const SMS_CATEGORIES = new Set(["callout_coverage", "callout", "waitlist_offer", "claim_decided", "swap_request", "swap_update"]);
+/** Preference rows with this category apply to every category of a channel. */
+export const ALL_CATEGORIES = "all";
 
 const providers = new Map<ExternalChannel, NotificationProvider>();
-
-/** Logs instead of sending. Enabled with NOTIFY_<CHANNEL>_PROVIDER=log (development only). */
-const logProvider = (channel: ExternalChannel): NotificationProvider => ({
-  channel,
-  name: "log",
-  async send(to, msg) {
-    log.info("notification.log_provider", { channel, userId: to.userId, title: msg.title });
-  },
-});
 
 export function registerProvider(p: NotificationProvider) {
   providers.set(p.channel, p);
@@ -45,17 +39,13 @@ export function clearProviders() {
 function configuredProvider(channel: ExternalChannel): NotificationProvider | undefined {
   const p = providers.get(channel);
   if (p) return p;
-  const env = process.env[`NOTIFY_${channel.toUpperCase()}_PROVIDER`];
-  if (env === "log" && process.env.APP_ENV !== "production") {
-    const lp = logProvider(channel);
-    providers.set(channel, lp);
-    return lp;
-  }
-  return undefined;
+  const fromEnv = providerFromEnv(channel);
+  if (fromEnv) providers.set(channel, fromEnv);
+  return fromEnv;
 }
 
 export function configuredChannels(): Channel[] {
-  return ["in_app", ...(["email", "sms", "push"] as const).filter((c) => configuredProvider(c))];
+  return ["in_app", ...(["email", "sms"] as const).filter((c) => configuredProvider(c))];
 }
 
 export interface NotifyInput {
@@ -67,24 +57,31 @@ export interface NotifyInput {
   data?: Record<string, unknown>;
 }
 
-/** Writes in-app notifications (and queues external ones) for the given users. */
+/** Writes in-app notifications (and queues email/texts) for the given users. */
 export async function notify(db: Db | Tx, n: NotifyInput): Promise<number> {
   const ids = [...new Set(n.userIds)];
   if (!ids.length) return 0;
-  const people = await db.select({ id: users.id, employeeId: users.employeeId }).from(users).where(and(inArray(users.id, ids), eq(users.organizationId, n.organizationId), eq(users.status, "active")));
+  const people = await db
+    .select({ id: users.id, employeeId: users.employeeId, mobilePhone: users.mobilePhone, smsConsentAt: users.smsConsentAt })
+    .from(users)
+    .where(and(inArray(users.id, ids), eq(users.organizationId, n.organizationId), eq(users.status, "active")));
   if (!people.length) return 0;
-  const external = (["email", "sms", "push"] as const).filter((c) => configuredProvider(c));
+  const external = (["email", "sms"] as const).filter((c) => configuredProvider(c) && (c !== "sms" || SMS_CATEGORIES.has(n.category)));
   const optOut = external.length
     ? await db
         .select()
         .from(notificationPreferences)
-        .where(and(inArray(notificationPreferences.userId, people.map((p) => p.id)), eq(notificationPreferences.category, n.category), eq(notificationPreferences.enabled, false)))
+        .where(and(inArray(notificationPreferences.userId, people.map((p) => p.id)), inArray(notificationPreferences.category, [n.category, ALL_CATEGORIES]), eq(notificationPreferences.enabled, false)))
     : [];
   const rows: (typeof notifications.$inferInsert)[] = [];
   for (const p of people) {
     const base = { organizationId: n.organizationId, userId: p.id, employeeId: p.employeeId, category: n.category, title: n.title, body: n.body, data: n.data ?? null };
     rows.push({ ...base, channel: "in_app", status: "sent", sentAt: new Date() });
-    for (const c of external) if (!optOut.some((o) => o.userId === p.id && o.channel === c)) rows.push({ ...base, channel: c, status: "pending" });
+    for (const c of external) {
+      if (optOut.some((o) => o.userId === p.id && o.channel === c)) continue;
+      if (c === "sms" && !(p.mobilePhone && p.smsConsentAt)) continue;
+      rows.push({ ...base, channel: c, status: "pending" });
+    }
   }
   for (let i = 0; i < rows.length; i += 500) await db.insert(notifications).values(rows.slice(i, i + 500));
   return people.length;
@@ -155,28 +152,113 @@ export async function markRead(db: Db, actor: Actor, ids?: string[]) {
 
 /* ------------------------------------------------------------- delivery */
 
-/** Sends queued email/SMS/push notifications. Safe to run repeatedly. */
+/** Where a notification should take the person in the app. */
+function linkFor(n: { category: string; userId: string | null }, isEmployee: boolean) {
+  const base = appBaseUrl();
+  if (["claim_review", "swap_review", "callout", "approval_requested"].includes(n.category)) return `${base}/open-shifts`;
+  if (["open_shift", "callout_coverage", "waitlist_offer"].includes(n.category)) return `${base}/app/shifts`;
+  return `${base}${isEmployee ? "/app" : "/overview"}`;
+}
+
+/**
+ * Sends queued email/texts. Safe to run repeatedly and from several servers at
+ * once: each message is claimed (pending -> sent) before it is handed to the
+ * provider, and marked failed if the provider refuses it.
+ */
 export async function deliverPending(db: Db, limit = 200) {
-  const pending = await db
-    .select({ n: notifications, email: users.email, displayName: users.displayName })
-    .from(notifications)
-    .innerJoin(users, eq(users.id, notifications.userId))
-    .where(and(eq(notifications.status, "pending"), inArray(notifications.channel, ["email", "sms", "push"])))
-    .orderBy(asc(notifications.createdAt))
-    .limit(limit);
+  const claimed = await db
+    .update(notifications)
+    .set({ status: "sent", sentAt: new Date() })
+    .where(
+      inArray(
+        notifications.id,
+        db
+          .select({ id: notifications.id })
+          .from(notifications)
+          .where(and(eq(notifications.status, "pending"), inArray(notifications.channel, ["email", "sms", "push"])))
+          .orderBy(asc(notifications.createdAt))
+          .limit(limit),
+      ),
+    )
+    .returning();
   let sent = 0;
   let failed = 0;
-  for (const { n, email, displayName } of pending) {
+  let skipped = 0;
+  for (const n of claimed) {
     const p = configuredProvider(n.channel as ExternalChannel);
-    if (!p) continue; // provider removed since queuing; leave pending
+    if (!p) {
+      // Provider removed since queuing: put it back for later.
+      await db.update(notifications).set({ status: "pending", sentAt: null }).where(eq(notifications.id, n.id));
+      skipped++;
+      continue;
+    }
+    const [u] = await db.select({ email: users.email, displayName: users.displayName, mobilePhone: users.mobilePhone, smsConsentAt: users.smsConsentAt, employeeId: users.employeeId }).from(users).where(eq(users.id, n.userId!));
     try {
-      await p.send({ userId: n.userId!, email, displayName }, { title: n.title, body: n.body, data: n.data });
-      await db.update(notifications).set({ status: "sent", sentAt: new Date() }).where(eq(notifications.id, n.id));
+      if (!u) throw new Error("User not found.");
+      if (n.channel === "sms" && !(u.mobilePhone && u.smsConsentAt)) throw new Error("Text messages were turned off for this person.");
+      await p.send({ userId: n.userId!, email: u.email, displayName: u.displayName, mobilePhone: u.mobilePhone }, { title: n.title, body: n.body, link: linkFor(n, !!u.employeeId) });
       sent++;
     } catch (e) {
       await db.update(notifications).set({ status: "failed", failureReason: String((e as Error)?.message ?? e).slice(0, 300) }).where(eq(notifications.id, n.id));
+      log.warn("notification.delivery_failed", { channel: n.channel, provider: p.name, notificationId: n.id });
       failed++;
     }
   }
-  return { sent, failed };
+  return { sent, failed, skipped };
+}
+
+/* ------------------------------------------------- personal preferences */
+
+export interface MyNotificationSettings {
+  email: string;
+  emailEnabled: boolean;
+  mobilePhone: string | null;
+  smsEnabled: boolean;
+  channelsAvailable: { email: boolean; sms: boolean };
+  organizationName: string;
+}
+
+export async function myNotificationSettings(db: Db, actor: Actor): Promise<MyNotificationSettings> {
+  const [u] = await db.select().from(users).where(eq(users.id, actor.userId));
+  const [org] = await db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, actor.organizationId));
+  const prefs = await db.select().from(notificationPreferences).where(and(eq(notificationPreferences.userId, actor.userId), eq(notificationPreferences.category, ALL_CATEGORIES)));
+  const off = (c: string) => prefs.some((p) => p.channel === c && !p.enabled);
+  return {
+    email: u.email,
+    emailEnabled: !off("email"),
+    mobilePhone: u.mobilePhone,
+    smsEnabled: !!(u.mobilePhone && u.smsConsentAt) && !off("sms"),
+    channelsAvailable: { email: !!configuredProvider("email"), sms: !!configuredProvider("sms") },
+    organizationName: org?.name ?? "your employer",
+  };
+}
+
+/** US numbers typed any common way -> E.164; other countries need a leading +. */
+export function normalizePhone(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const digits = t.replace(/[^\d]/g, "");
+  if (t.startsWith("+")) return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : null;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return null;
+}
+
+export async function saveMyNotificationSettings(db: Db, actor: Actor, ctx: AuditContext, input: { emailEnabled: boolean; smsEnabled: boolean; mobilePhone: string }) {
+  const phone = normalizePhone(input.mobilePhone);
+  if (input.mobilePhone.trim() && !phone) throw new AppError("Enter a mobile number like (555) 555-0123.");
+  if (input.smsEnabled && !phone) throw new AppError("Add your mobile number to get text messages.");
+  const [u] = await db.select().from(users).where(eq(users.id, actor.userId));
+  await db.transaction(async (tx) => {
+    const consentChanged = input.smsEnabled !== !!u.smsConsentAt || phone !== u.mobilePhone;
+    await tx.update(users).set({ mobilePhone: phone, smsConsentAt: input.smsEnabled ? (u.smsConsentAt && phone === u.mobilePhone ? u.smsConsentAt : new Date()) : null }).where(eq(users.id, actor.userId));
+    for (const [channel, enabled] of [["email", input.emailEnabled], ["sms", input.smsEnabled]] as const) {
+      await tx
+        .insert(notificationPreferences)
+        .values({ userId: actor.userId, category: ALL_CATEGORIES, channel, enabled })
+        .onConflictDoUpdate({ target: [notificationPreferences.userId, notificationPreferences.category, notificationPreferences.channel], set: { enabled } });
+    }
+    // Consent to texts is recorded in the audit log (who, when, which number's last digits).
+    await audit(tx, ctx, { action: "user.notification_settings_updated", entityType: "user", entityId: actor.userId, after: { emailEnabled: input.emailEnabled, smsEnabled: input.smsEnabled, phoneLast4: phone?.slice(-4) ?? null, smsConsent: consentChanged ? (input.smsEnabled ? "given" : "withdrawn") : "unchanged" } });
+  });
 }

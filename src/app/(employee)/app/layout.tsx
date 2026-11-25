@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { DemoBanner } from "@/components/brand";
 import { NavLink } from "@/components/nav-link";
 import { requireActor } from "@/server/context";
+import { kickBackgroundJobs } from "@/server/marketplace/background";
 import { isStaff } from "@/server/rbac/access";
 
 const TABS = [
@@ -17,6 +18,7 @@ const TABS = [
 
 export default async function EmployeeLayout({ children }: { children: ReactNode }) {
   const actor = await requireActor();
+  kickBackgroundJobs();
   if (!actor.employeeId) redirect(isStaff(actor) ? "/overview" : "/forbidden");
   return (
     <div className="mx-auto flex min-h-dvh max-w-xl flex-col">

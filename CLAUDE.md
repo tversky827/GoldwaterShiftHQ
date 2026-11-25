@@ -23,8 +23,9 @@ Detailed docs live in `docs/architecture.md`, `docs/progress.md` and `docs/integ
 - **Phase 2 (scheduling): done.** Budget editor, schedule generation (DST-safe), weekly drag-and-drop board, rules engine, approvals and overrides, cross-facility hours, Settings → Rules, employee availability, restricted pay rates.
 - **Phase 3 (marketplace): done (session 4).** Services in `src/server/marketplace/` (listings, claims, swaps, callouts, settings, state, jobs); staff page `/open-shifts`; Settings → Marketplace; employee Pick Up tab, shift detail (`/app/schedule/[id]`: swap, "I can't make it"), Home swap requests. Migration `0006_phase3_marketplace`. Cron `/api/cron/marketplace` every 10 min. Details in `docs/progress.md`.
   - `src/server/marketplace/state.ts#refreshShiftMarket` keeps listings/claims/callouts/waitlists consistent; call it (inside the transaction) after ANY change that fills or frees an opening. `assignments.ts` exports `insertAssignmentTx` / `withFriendlyDbErrors` for this.
-  - Email/SMS/push: provider interface only (`src/server/notifications.ts`); owner hasn't picked vendors. In-app works.
-- **90 tests pass** (`npm test`), `next build` passes. The roadmap assigns AC 2, 6, 7, 11, 12, 13, 14 to Phase 3, but the acceptance-criteria TEXT isn't stored in the repo, so new tests are named by behaviour, not AC number. Ask the owner to paste the 20 criteria if numbering matters.
+  - **Notifications (session 5):** in-app always; email via SMTP (e.g. Microsoft 365) or SendGrid; texts via Twilio (`src/server/notify-providers.ts`, env-selected, either/both/neither). Texts only for urgent categories (`SMS_CATEGORIES`) and only with `users.mobile_phone` + `users.sms_consent_at` (consent audited). Per-person settings: employee Profile → Notifications, staff Settings → My notifications. Owner guide: `docs/integrations/08-notifications-setup.md`. Delivery claims rows before sending (never twice). Push is not implemented.
+  - **Background jobs don't depend on the hosting plan:** `kickBackgroundJobs()` (in the staff and employee layouts) runs `runMarketplaceJobs` via `after()` at most every 2 min per server; cron still used when available. Job steps are written to be safe if two servers run them at once (conditional updates).
+- **101 tests pass** (`npm test`), `next build` passes. Tests are named by behaviour; the original acceptance-criteria text isn't available (owner doesn't have it), so don't chase AC numbers.
 - **Next: Phase 4 (regional pool dashboard),** then Phase 5 (reporting and exports), Phase 6 (hardening, including RLS).
 
 ## Owner decisions (don't re-ask)
@@ -34,7 +35,7 @@ Detailed docs live in `docs/architecture.md`, `docs/progress.md` and `docs/integ
 - **A4:** future assignments of terminated employees are kept and flagged; pending claims and waitlist entries are cancelled.
 
 ## Owner's answers about vendors
-- **Open owner questions (session 4):** which email/SMS vendors to use for notifications; whether the hosting plan allows a 10-minute cron job.
+- **Session 5 answers:** notifications: owner wants the option of email and/or texts (built; vendor accounts not yet created, see Guide 08). Cron question confused the owner, so the app no longer depends on it; don't re-ask. The owner doesn't know of any "20 acceptance criteria" document; don't ask again. Use the roadmap in `docs/architecture.md` §7 as the scope reference.
 - **Paycor:** the owner *thinks* they're a client admin; they were asked to confirm with their Paycor rep. **12 legal entities** (with 11 facilities; mapping handles this). The developer portal signup (Guide 02, Step 2) is the next owner action.
 - **AOD:** billed by a **third-party reseller**, which is the first contact for integration. The email template is `docs/integrations/04-aod-vendor-email.md`. The owner is unsure whether AOD hours already flow into Paycor; they'll ask payroll.
 - **Session 5:** `api.paycor.com` now reachable (owner allowed it); `apis.paycor.com`/`secure.paycor.com` still blocked (only needed for live calls).

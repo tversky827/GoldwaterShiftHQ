@@ -46,7 +46,8 @@ export async function runMarketplaceJobs(db: Db, now = new Date()) {
     .where(and(inArray(marketplaceListings.status, ["scheduled", "open"]), or(and(isNotNull(marketplaceListings.expiresAt), lte(marketplaceListings.expiresAt, now)), lte(shifts.startsAt, now))));
   for (const l of stale) {
     await db.transaction(async (tx) => {
-      await tx.update(marketplaceListings).set({ status: "expired" }).where(eq(marketplaceListings.id, l.id));
+      const won = await tx.update(marketplaceListings).set({ status: "expired" }).where(and(eq(marketplaceListings.id, l.id), inArray(marketplaceListings.status, ["scheduled", "open"]))).returning({ id: marketplaceListings.id });
+      if (!won.length) return; // another server already closed it
       const cancelled = await tx
         .update(shiftClaims)
         .set({ status: "cancelled", decidedAt: now, decisionReason: "The open shift closed before a decision was made." })

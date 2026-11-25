@@ -107,3 +107,5 @@ Being honest about this matters. Nothing below was invented, but some details co
 | Port 8192 on that host | Connection reset from our cloud environment on 2026-11-25 | **Ask AOD** whether it's the right port and whether they allow-list IP addresses |
 | Exact AOD methods for pulling punches/employees for *your* account | Not found publicly | **Ask AOD** (email template provided) |
 | AOD scheduled export / SFTP availability for your account | Not confirmed | **Ask AOD** |
+
+See also [08-notifications-setup.md](08-notifications-setup.md): turning on email and/or text-message notifications.

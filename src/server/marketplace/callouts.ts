@@ -81,7 +81,8 @@ export async function escalateCallouts(db: Db, now = new Date()) {
     }
     if (sc.shift.startsAt <= now) {
       await db.transaction(async (tx) => {
-        await tx.update(callouts).set({ status: "uncovered", resolvedAt: now }).where(eq(callouts.id, co.id));
+        const won = await tx.update(callouts).set({ status: "uncovered", resolvedAt: now }).where(and(eq(callouts.id, co.id), eq(callouts.status, "open"))).returning({ id: callouts.id });
+        if (!won.length) return;
         await audit(tx, ctx, { action: "callout.uncovered", entityType: "callout", entityId: co.id, facilityId: co.facilityId });
         await notify(tx, { organizationId: orgId, userIds: await usersWithPermission(tx, orgId, "callouts.manage", co.facilityId!), category: "callout", title: "Shift started uncovered", body: `${sc.positionCode} on ${when} started without coverage.`, data: { calloutId: co.id } });
       });
@@ -94,8 +95,10 @@ export async function escalateCallouts(db: Db, now = new Date()) {
     const since = co.escalatedAt ?? co.createdAt;
     if (now.getTime() - since.getTime() < waitMin * 60_000) continue;
     const level = co.escalationLevel + 1;
-    await db.transaction(async (tx) => {
-      await tx.update(callouts).set({ escalationLevel: level, escalatedAt: now }).where(eq(callouts.id, co.id));
+    const done = await db.transaction(async (tx) => {
+      // Conditional update: if another server already escalated this callout, do nothing.
+      const won = await tx.update(callouts).set({ escalationLevel: level, escalatedAt: now }).where(and(eq(callouts.id, co.id), eq(callouts.escalationLevel, co.escalationLevel), eq(callouts.status, "open"))).returning({ id: callouts.id });
+      if (!won.length) return false;
       if (level === 1 && co.listingId) {
         await tx.update(marketplaceListings).set({ audience: { scope: "authorized" } }).where(eq(marketplaceListings.id, co.listingId));
         const homeUsers = await eligibleUserIds(tx, orgId, co.facilityId!, sc.shift.positionId, "home");
@@ -106,8 +109,9 @@ export async function escalateCallouts(db: Db, now = new Date()) {
         await notify(tx, { organizationId: orgId, userIds: leaders, category: "callout", title: "Callout still uncovered", body: `${sc.positionCode} at ${sc.facility.name} on ${when} is still open after ${cfg.escalationMinutes.reduce((s, m) => s + m, 0)} minutes.`, data: { calloutId: co.id } });
       }
       await audit(tx, ctx, { action: "callout.escalated", entityType: "callout", entityId: co.id, facilityId: co.facilityId, after: { level } });
+      return true;
     });
-    stats.escalated++;
+    if (done) stats.escalated++;
   }
   return stats;
 }

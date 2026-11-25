@@ -4,6 +4,8 @@ import { getDb } from "@/db";
 import { EMPLOYMENT_TYPE_LABEL, formatDate } from "@/lib/format";
 import { requireActor } from "@/server/context";
 import { getEmployeeProfile } from "@/server/employees";
+import { myNotificationSettings } from "@/server/notifications";
+import { NotificationSettingsForm } from "@/components/notifications/settings-form";
 import { signOutAction } from "../../../(public)/actions";
 
 export const metadata = { title: "My profile" };
@@ -28,7 +30,8 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default async function ProfilePage() {
   const actor = await requireActor();
-  const p = await getEmployeeProfile(await getDb(), actor, actor.employeeId!);
+  const db = await getDb();
+  const [p, notes] = await Promise.all([getEmployeeProfile(db, actor, actor.employeeId!), myNotificationSettings(db, actor)]);
   const e = p.employee;
   const name = `${e.preferredName ?? e.firstName} ${e.lastName}`;
   return (
@@ -38,6 +41,13 @@ export default async function ProfilePage() {
         <h1 className="mt-3 text-[26px] font-semibold tracking-tight">{name}</h1>
         <p className="text-[15px] text-muted">{p.positions.find((x) => x.isPrimary)?.name ?? e.paycorPosition}</p>
       </div>
+
+      <section>
+        <h2 className="mb-1.5 px-1 text-[13px] font-medium uppercase tracking-wide text-faint">Notifications</h2>
+        <div className="rounded-2xl border border-black/[0.04] bg-surface p-4 shadow-card">
+          <NotificationSettingsForm v={notes} />
+        </div>
+      </section>
 
       <Group title="Employment">
         <Row label="Home facility" value={e.isRegionalPool ? "Regional staffing pool" : p.facilityName} />
