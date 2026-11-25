@@ -27,7 +27,7 @@ export default async function ShiftDetailPage({ params }: { params: Promise<{ id
   const m = data.mine;
   return (
     <div className="space-y-6">
-      <Link href="/app/schedule" className="inline-flex items-center gap-1 text-[15px] text-accent">
+      <Link href="/app/schedule" className="-ml-1 inline-flex min-h-11 items-center gap-1 px-1 text-[15px] text-accent">
         <ChevronLeft className="size-4" /> Schedule
       </Link>
       <NextShiftCard s={{ startsAt: m.startsAt, endsAt: m.endsAt, facilityName: m.facilityName, facilityTimezone: m.facilityTimezone, positionName: m.positionCode }} label="Your shift" />

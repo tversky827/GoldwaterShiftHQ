@@ -45,7 +45,7 @@ function Banner({ r, onClose }: { r: EmployeeResult; onClose: () => void }) {
     <div role="status" className={cn("flex items-start gap-3 rounded-2xl px-4 py-3 text-[14px]", tone)}>
       {r.ok ? <CheckCircle2 className="mt-0.5 size-4 shrink-0" /> : <AlertTriangle className="mt-0.5 size-4 shrink-0" />}
       <span className="flex-1">{r.message}</span>
-      <button onClick={onClose} className="text-[13px] font-medium opacity-80">
+      <button onClick={onClose} className="-my-2.5 -mr-2 min-h-11 px-2 text-[13px] font-medium opacity-80">
         OK
       </button>
     </div>
@@ -139,7 +139,7 @@ export function PickUpList({ cards, requested, full }: { cards: Card[]; requeste
                     {r.range} · {r.facilityName}
                   </div>
                 </div>
-                <Button size="sm" variant="quiet" disabled={!!busy} onClick={() => act(r.id, () => cancelRequestAction(r.id))}>
+                <Button variant="quiet" className="h-11" disabled={!!busy} onClick={() => act(r.id, () => cancelRequestAction(r.id))}>
                   Cancel
                 </Button>
               </li>
@@ -162,11 +162,11 @@ export function PickUpList({ cards, requested, full }: { cards: Card[]; requeste
                   </div>
                 </div>
                 {f.onWaitlist ? (
-                  <Button size="sm" variant="quiet" disabled={!!busy} onClick={() => act(f.listingId, () => leaveWaitlistAction(f.shiftId))}>
+                  <Button variant="quiet" className="h-11" disabled={!!busy} onClick={() => act(f.listingId, () => leaveWaitlistAction(f.shiftId))}>
                     On waitlist · Leave
                   </Button>
                 ) : (
-                  <Button size="sm" variant="secondary" disabled={!!busy} onClick={() => act(f.listingId, () => joinWaitlistAction(f.listingId))}>
+                  <Button variant="secondary" className="h-11" disabled={!!busy} onClick={() => act(f.listingId, () => joinWaitlistAction(f.listingId))}>
                     Join waitlist
                   </Button>
                 )}

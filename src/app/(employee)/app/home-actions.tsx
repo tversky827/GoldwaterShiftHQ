@@ -36,10 +36,10 @@ export function SwapRequests({ items }: { items: SwapItem[] }) {
             </div>
             {s.incoming && s.status === "pending_peer" ? (
               <div className="mt-3 flex gap-2">
-                <Button size="sm" variant="quiet" className="flex-1" disabled={pending} onClick={() => run(() => respondSwapAction(s.id, false))}>
+                <Button variant="quiet" className="h-11 flex-1" disabled={pending} onClick={() => run(() => respondSwapAction(s.id, false))}>
                   Decline
                 </Button>
-                <Button size="sm" className="flex-1" disabled={pending} onClick={() => run(() => respondSwapAction(s.id, true))}>
+                <Button className="h-11 flex-1" disabled={pending} onClick={() => run(() => respondSwapAction(s.id, true))}>
                   Accept
                 </Button>
               </div>
@@ -47,7 +47,7 @@ export function SwapRequests({ items }: { items: SwapItem[] }) {
               <div className="mt-2 flex items-center justify-between text-[12px] text-faint">
                 <span>{s.status === "pending_manager" ? "Waiting for manager approval" : "Waiting for your colleague"}</span>
                 {!s.incoming && (
-                  <Button size="sm" variant="quiet" disabled={pending} onClick={() => run(() => cancelSwapAction(s.id))}>
+                  <Button variant="quiet" className="-my-2 h-11" disabled={pending} onClick={() => run(() => cancelSwapAction(s.id))}>
                     Cancel
                   </Button>
                 )}
@@ -63,7 +63,7 @@ export function SwapRequests({ items }: { items: SwapItem[] }) {
 export function MarkAllRead() {
   const [pending, start] = useTransition();
   return (
-    <button className="text-[14px] font-medium text-accent disabled:opacity-50" disabled={pending} onClick={() => start(async () => void (await markAllReadAction()))}>
+    <button className="-my-2.5 -mr-2 min-h-11 px-2 text-[14px] font-medium text-accent disabled:opacity-50" disabled={pending} onClick={() => start(async () => void (await markAllReadAction()))}>
       Mark all read
     </button>
   );

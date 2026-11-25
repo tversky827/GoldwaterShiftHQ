@@ -28,7 +28,7 @@ export default async function MySchedulePage({ searchParams }: { searchParams: P
           { k: "upcoming", l: "Upcoming" },
           { k: "past", l: "Past" },
         ].map((t) => (
-          <Link key={t.k} href={`/app/schedule${t.k === "past" ? "?view=past" : ""}`} className={cn("rounded-full px-4 py-1.5", (t.k === "past") === past ? "bg-surface font-medium shadow-card" : "text-ink-2")}>
+          <Link key={t.k} href={`/app/schedule${t.k === "past" ? "?view=past" : ""}`} className={cn("inline-flex min-h-10 items-center rounded-full px-4", (t.k === "past") === past ? "bg-surface font-medium shadow-card" : "text-ink-2")}>
             {t.l}
           </Link>
         ))}

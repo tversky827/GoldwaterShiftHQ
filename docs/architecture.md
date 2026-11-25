@@ -179,4 +179,4 @@ Step-by-step owner guide: `docs/integrations/02-paycor-setup.md`.
 | **3. Marketplace** | Publishing (single, bulk, scheduled, auto, expiry, withdraw), employee app tabs, claiming with atomic assignment, approval workflows, waitlists, swaps, callouts + escalation, notifications (in-app, email, SMS, push) | 2, 6, 7, 11, 12, 13, 14 |
 | **4. Regional pool** | Pool classification, authorizations, consolidated hours, pool dashboard | 8, 9 |
 | **5. Reporting** | Corporate dashboard, budget vs scheduled vs actual, overtime, fill rate, time-to-fill, exports (CSV/Excel) | 15, 18 |
-| 6. Hardening | RLS policies, security review, concurrency load tests, sync failure drills, mobile QA, backups/restore runbook, Sentry | 12, 19, 20 |
+| **6. Hardening** | RLS policies, security review, concurrency load tests, sync failure drills, mobile QA, backups/restore runbook, Sentry | 12, 19, 20 |

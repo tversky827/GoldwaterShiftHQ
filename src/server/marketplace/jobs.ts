@@ -11,13 +11,39 @@ import { and, eq, gt, inArray, isNotNull, lt, lte, or, sql } from "drizzle-orm";
 import type { Db } from "@/db";
 import { facilities, marketplaceListings, organizations, schedules, shiftAssignments, shiftClaims, shifts } from "@/db/schema";
 import { audit, type AuditContext } from "../audit";
+import { log } from "../log";
 import { deliverPending, notify, usersForEmployees } from "../notifications";
 import { escalateCallouts } from "./callouts";
 import { marketplaceConfig } from "./settings";
 import { announceListings, formatShift } from "./state";
 
 export async function runMarketplaceJobs(db: Db, now = new Date()) {
-  const out = { opened: 0, expired: 0, autoPublished: 0, callouts: { escalated: 0, covered: 0, uncovered: 0 }, delivered: { sent: 0, failed: 0 } };
+  const out = { opened: 0, expired: 0, autoPublished: 0, callouts: { escalated: 0, covered: 0, uncovered: 0 }, delivered: { sent: 0, failed: 0, skipped: 0 }, errors: [] as string[] };
+  // Each step is isolated: one failing step is logged and reported, and the others still run.
+  const step = async (name: string, fn: () => Promise<void>) => {
+    try {
+      await fn();
+    } catch (e) {
+      out.errors.push(name);
+      log.error("jobs.step_failed", { step: name, message: (e as Error)?.message?.slice(0, 300) });
+    }
+  };
+  await step("open_scheduled", () => openScheduled(db, now, out));
+  await step("expire", () => expireListings(db, now, out));
+  await step("auto_publish", () => autoPublish(db, now, out));
+  await step("callouts", async () => {
+    out.callouts = await escalateCallouts(db, now);
+  });
+  // External notification delivery (no-op until a provider is configured)
+  await step("deliver", async () => {
+    out.delivered = await deliverPending(db);
+  });
+  return out;
+}
+
+type JobOut = Awaited<ReturnType<typeof runMarketplaceJobs>>;
+
+async function openScheduled(db: Db, now: Date, out: JobOut) {
 
   // 1. Scheduled -> open
   const due = await db
@@ -36,7 +62,9 @@ export async function runMarketplaceJobs(db: Db, now = new Date()) {
     }
     for (const [org, ids] of byOrg) await announceListings(db, org, ids);
   }
+}
 
+async function expireListings(db: Db, now: Date, out: JobOut) {
   // 2. Expire
   const stale = await db
     .select({ id: marketplaceListings.id, facilityId: marketplaceListings.facilityId, org: facilities.organizationId, startsAt: shifts.startsAt, tz: facilities.timezone, facilityName: facilities.name })
@@ -58,7 +86,9 @@ export async function runMarketplaceJobs(db: Db, now = new Date()) {
     });
   }
   out.expired = stale.length;
+}
 
+async function autoPublish(db: Db, now: Date, out: JobOut) {
   // 3. Automatic publishing
   const orgs = await db.select({ id: organizations.id }).from(organizations);
   for (const o of orgs) {
@@ -94,10 +124,4 @@ export async function runMarketplaceJobs(db: Db, now = new Date()) {
     if (created.length) await announceListings(db, o.id, created);
     out.autoPublished += created.length;
   }
-
-  // 4. Callouts
-  out.callouts = await escalateCallouts(db, now);
-  // 5. External notification delivery (no-op until a provider is configured)
-  out.delivered = await deliverPending(db);
-  return out;
 }

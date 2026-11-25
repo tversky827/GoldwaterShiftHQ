@@ -15,7 +15,8 @@
     "seed:demo": "tsx scripts/seed-demo.mts",
     "bootstrap": "tsx scripts/bootstrap.mts",
     "test:pg": "node scripts/test-pg.mjs",
-    "db:app-role": "tsx scripts/db-app-role.mts"
+    "db:app-role": "tsx scripts/db-app-role.mts",
+    "qa:mobile": "node scripts/qa-mobile.cjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.6.0",

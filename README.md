@@ -43,3 +43,7 @@ Open http://localhost:3000. The sign-in page lists the demonstration accounts (o
 | `src/app/(employee)/app/` | Employee experience (mobile-first PWA) |
 | `src/components/ui/` | Design system components |
 | `tests/` | Integration tests mapped to the acceptance criteria |
+
+## Operations
+
+Going live, backups, monitoring and incident playbooks: [docs/operations.md](docs/operations.md).

@@ -93,5 +93,20 @@
 
 **Tests:** 8 new report tests (115 in total).
 
-## Next: Phase 6, Hardening
-Row-level security in the database, a security review, concurrency load tests, sync-failure drills, mobile QA, a backup/restore runbook, and error monitoring.
+## Phase 6: Hardening (complete)
+
+**Built and tested**
+- **Row-level security** (migration 0008): PostgreSQL itself keeps each organization's data separate. The app connects as a restricted login (`npm run db:app-role`) that can only see its own organization, can't change which organization that is, can't edit or delete the audit log, and can't hard-delete employees, assignments or organizations. A login with no organization sees nothing.
+- **Real-PostgreSQL testing:** the whole suite runs on a real server (`npm run test:pg`), and again as the restricted login (`TEST_AS_APP_ROLE=1`): 129 tests pass both ways.
+- **Load tests:** simultaneous pick-ups, double-booking attempts, bursts of 200 claims, background jobs on five servers at once. **They found and we fixed a real bug:** under truly parallel delivery, an email could be sent more than once. Each message is now sent exactly once.
+- **Security review:** sign-in, sessions, invitations, redirects, permissions and exports reviewed. Added a strict Content Security Policy and other headers, no caching of API responses, and friendly error pages with reference codes. Upgraded or patched dependencies until `npm audit` was clean.
+- **Monitoring:** `/api/health` for uptime checks; structured error logging; optional Sentry with personal data removed.
+- **Failure drills:** timekeeping outage mid-sync, database outage, and a crashing background step (now isolated, so the other steps still run).
+- **Mobile QA:** `npm run qa:mobile` checks every employee screen on four devices. Fixed five tap targets that were too small.
+- **Backup and restore:** runbook plus a real drill (backup → restore → verified counts, policies, triggers and protections).
+- **Operations runbook:** `docs/operations.md` (go-live checklist, backups, monitoring, what to do when something breaks).
+
+**Tests:** 129 on real PostgreSQL, also as the restricted login (118 on the embedded database, where the 11 real-server-only tests are skipped).
+
+## What's next
+All six phases are complete. Remaining work depends on vendor access and owner decisions: connecting Paycor (sandbox first) and AOD, confirming the overtime/labor rules (Settings → Rules), choosing email/text providers, and choosing hosting (then following `docs/operations.md`).
