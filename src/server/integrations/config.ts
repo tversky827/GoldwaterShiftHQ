@@ -42,7 +42,11 @@ export function getPaycorConfig() {
     apiBaseUrl,
     tokenUrl: env("PAYCOR_TOKEN_URL") ?? `${apiBaseUrl}/sts/v1/common/token`,
     redirectUri: `${appBaseUrl()}/api/integrations/paycor/callback`,
-    /** Minimum milliseconds between Paycor requests (client-side throttle). */
+    /**
+     * Minimum milliseconds between Paycor requests (client-side throttle).
+     * 250 ms = 240 calls/minute, well under Paycor's documented 1,000/minute
+     * shared across all of the app's Paycor API calls.
+     */
     minRequestIntervalMs: Number(env("PAYCOR_MIN_REQUEST_INTERVAL_MS") ?? 250),
   };
 }

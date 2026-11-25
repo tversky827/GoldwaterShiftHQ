@@ -4,8 +4,18 @@
  *  2. We send their browser to the Activation URL from Paycor AppCreator.
  *  3. They sign in to Paycor and approve the app for that legal entity.
  *  4. Paycor redirects back to our callback with a one-time code.
- *  5. The server exchanges the code (+ client secret) for an access token
- *     (~30 min) and a refresh token. Both are encrypted at rest.
+ *  5. The server exchanges the code (+ client secret + PKCE code_verifier) for
+ *     an access token (30 min) and a refresh token. Both are encrypted at rest.
+ *
+ * Confirmed in Paycor's developer guides (developers.paycor.com, read 2026-11-25):
+ *  - scope must be "<app scope> offline_access" (space, which encodes to "+"),
+ *    or no refresh token is issued;
+ *  - PKCE: code_challenge + code_challenge_method=S256 on the authorize URL,
+ *    matching code_verifier on the token request;
+ *  - the code is valid for 10 minutes and can be used ONCE, so the code exchange
+ *    is never retried automatically;
+ *  - the redirect URL must be registered in AppCreator -> Security Connections
+ *    ("Approved Return OAuth URL") and cannot contain query-string parameters.
  *
  * Paycor issues tokens PER LEGAL ENTITY; each has its own integration_connections row.
  * Every API call also sends the APIm subscription key header.
@@ -34,7 +44,20 @@ export function signState(payload: { nonce: string; legalEntityId: string; userI
   return `${body}.${sig}`;
 }
 
-export function verifyState(state: string | null, nonceCookie: string | undefined): { legalEntityId: string; userId: string } | null {
+/**
+ * PKCE verifier derived from the nonce with a server-only key. The nonce travels
+ * in the (signed, not encrypted) state, but without APP_ENCRYPTION_KEY nobody can
+ * compute the verifier, so it never needs to be stored or sent to the browser.
+ */
+export function pkceVerifier(nonce: string): string {
+  return crypto.createHmac("sha256", hmacKey()).update(`pkce:${nonce}`).digest("base64url");
+}
+
+export function pkceChallenge(verifier: string): string {
+  return crypto.createHash("sha256").update(verifier).digest("base64url");
+}
+
+export function verifyState(state: string | null, nonceCookie: string | undefined): { legalEntityId: string; userId: string; nonce: string } | null {
   if (!state || !nonceCookie) return null;
   const [body, sig] = state.split(".");
   if (!body || !sig) return null;
@@ -43,7 +66,7 @@ export function verifyState(state: string | null, nonceCookie: string | undefine
   try {
     const p = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
     if (p.nonce !== nonceCookie || typeof p.exp !== "number" || p.exp < Date.now()) return null;
-    return { legalEntityId: String(p.legalEntityId), userId: String(p.userId) };
+    return { legalEntityId: String(p.legalEntityId), userId: String(p.userId), nonce: String(p.nonce) };
   } catch {
     return null;
   }
@@ -63,6 +86,8 @@ export function buildActivationUrl(legalEntityId: string, userId: string, c: Pay
   setIfMissing("response_type", "code");
   setIfMissing("redirect_uri", c.redirectUri);
   setIfMissing("scope", [c.appScope, "offline_access"].filter(Boolean).join(" "));
+  url.searchParams.set("code_challenge", pkceChallenge(pkceVerifier(nonce)));
+  url.searchParams.set("code_challenge_method", "S256");
   url.searchParams.set("state", state);
   return { url: url.toString(), nonce };
 }
@@ -73,13 +98,18 @@ interface TokenResponse {
   expires_in?: number;
 }
 
+/**
+ * Token requests are POSTs. Paycor asks integrators not to auto-retry POSTs that
+ * fail with 5xx, and authorization codes are single-use, so only network errors
+ * and 429 (rate limit, nothing was processed) are retried here.
+ */
 async function tokenRequest(params: Record<string, string>, c: PaycorConfig): Promise<TokenResponse> {
   if (!c.subscriptionKey || !c.clientId || !c.clientSecret) throw new Error("Paycor client ID, client secret, and subscription key must all be set.");
   const res = await fetchWithRetry(c.tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", [SUBSCRIPTION_KEY_HEADER]: c.subscriptionKey },
     body: new URLSearchParams({ client_id: c.clientId, client_secret: c.clientSecret, ...params }),
-  });
+  }, { retryServerErrors: false, retryNetworkErrors: params.grant_type !== "authorization_code" });
   if (!res.ok) throw new IntegrationHttpError(res.status, explainHttpStatus("Paycor", res.status), redact(await res.text().catch(() => "")));
   return (await res.json()) as TokenResponse;
 }
@@ -116,8 +146,8 @@ async function saveTokens(db: Db, orgId: string, legalEntityId: string, t: Token
     });
 }
 
-export async function exchangeCode(db: Db, orgId: string, legalEntityId: string, code: string, userId: string, c = getPaycorConfig()) {
-  const t = await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: c.redirectUri }, c);
+export async function exchangeCode(db: Db, orgId: string, legalEntityId: string, code: string, userId: string, nonce: string, c = getPaycorConfig()) {
+  const t = await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: c.redirectUri, code_verifier: pkceVerifier(nonce) }, c);
   await saveTokens(db, orgId, legalEntityId, t, c, { userId });
 }
 

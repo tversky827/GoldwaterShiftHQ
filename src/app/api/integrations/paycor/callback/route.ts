@@ -28,7 +28,7 @@ export async function GET(req: Request) {
   if (!code) return back(req, false, "Paycor returned without an authorization code. Try “Connect Paycor” again.");
   try {
     const db = await getDb();
-    await exchangeCode(db, actor.organizationId, state.legalEntityId, code, actor.userId);
+    await exchangeCode(db, actor.organizationId, state.legalEntityId, code, actor.userId, state.nonce);
     await audit(db, { organizationId: actor.organizationId, actorUserId: actor.userId, ...(await requestMeta()) }, { action: "integration.paycor.authorized", entityType: "integration", after: { legalEntityId: state.legalEntityId } });
     return back(req, true, `Paycor authorized for legal entity ${state.legalEntityId}. Next: click “Test connection”.`);
   } catch (e) {

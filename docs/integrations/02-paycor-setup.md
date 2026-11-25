@@ -46,7 +46,9 @@
 - **Sandbox** = Paycor's practice environment with fake employees. Paycor's sandbox terms say only simulated/test data may be used there. Do all first testing here.
 - **Production** = your real Paycor company data.
 
-The two usually come with **separate credentials** (in particular a separate **subscription key**). Paycor's own material is inconsistent about whether sandbox uses a different web address, so we'll confirm it from what your portal shows.
+Paycor's developer guide (read 2026-11-25) says the two environments have **separate sign-in credentials and use different tokens and IDs**. The same APIs exist in both; only the data differs. A **sandbox account is not automatic**: you request one from the portal's **Support** form (category **Sandbox Environment**), and Paycor's stated turnaround is **about 5 business days**. The guide shows the sandbox web address as a picture we couldn't read, so we'll still confirm it from what your portal shows.
+
+**Do this (if you have no sandbox yet):** once signed in to the portal, open **Support**, choose the category **Sandbox Environment**, and ask for a Developer Portal sandbox account for your company.
 
 **Do this:** in the portal, look for anything labeled **Sandbox**, **Test**, **Production**, or **Environment**, especially on your subscription/keys page.
 
@@ -107,7 +109,7 @@ Our app's redirect URL is:
 
 The integration dashboard always displays the correct one under the **Connect Paycor** button, and `npm run check-config` prints it too.
 
-**Do this:** on the app's **Redirect URIs** (or similar) tab, add the URL and save.
+**Do this:** in AppCreator, open the app's **Security Connections** tab and add the URL as an **Approved Return OAuth URL**, then save. (Paycor's guide says the address can't contain anything after a `?`; ours doesn't.)
 
 **Note:** some vendors reject `http://localhost`. If Paycor does, tell Claude, and we'll use the hosted address instead.
 
@@ -145,8 +147,9 @@ Follow [05-secure-credentials.md](05-secure-credentials.md), Part B, to put them
 
 1. Start the app (`npm run dev`) and sign in as a corporate administrator, and open **Settings → Integrations** (http://localhost:3000/settings/integrations).
 2. On the **Paycor** card, type the **Legal Entity ID** and click **Connect Paycor**.
-3. Your browser goes to Paycor. Log in as a **client admin** and approve the app.
-4. Paycor sends you back to the dashboard.
+3. Your browser goes to Paycor. Log in with a Paycor Perform account that has the **Company, Payroll or HR admin** role, and approve the app. (If Paycor shows **Error 403**, that account lacks the role; ask your internal Paycor admin.) Paycor lets you tick several legal entities at once **if they belong to the same company**. The app currently connects one at a time, which always works.
+4. **Finish within 10 minutes.** Paycor's one-time code expires after 10 minutes and can only be used once. If it fails, just click **Connect Paycor** again.
+5. Paycor sends you back to the dashboard.
 
 **You should see:** a green message: *"Paycor authorized for legal entity ____. Next: click 'Test connection'."*
 

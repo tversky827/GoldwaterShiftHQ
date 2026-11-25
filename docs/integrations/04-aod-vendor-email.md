@@ -6,11 +6,11 @@ Send to your Attendance on Demand support contact **or** your AOD reseller (see 
 
 ---
 
-**Subject:** Integration access request: [Company name], AOD account [AOD host name, e.g. yourcompany.attendanceondemand.com]
+**Subject:** Integration access request: [Company name], AOD account goldwater.attendanceondemand.com
 
 Hello,
 
-I'm the [title] at [Company name], an Attendance on Demand customer[ through (reseller name)]. Our AOD account is at **[AOD host name]**, and our AOD administrator is [name, title], CC'd here.
+I'm the [title] at [Company name], an Attendance on Demand customer[ through (reseller name)]. Our AOD account is at **goldwater.attendanceondemand.com**, and our AOD administrator is [name, title], CC'd here.
 
 We're building an internal workforce scheduling application for our skilled nursing facilities. It needs **read-only** access to our own AOD timekeeping data so we can compare scheduled shifts against actual punches, spot missing punches, and project overtime. **The application will not create, edit, or delete punches, and will not submit anything to payroll.**
 
@@ -33,7 +33,7 @@ Could you please help with the following?
 
 7. **Existing payroll interface.** Could you confirm how hours currently flow from AOD to Paycor for our account (if they do), so our application doesn't duplicate or conflict with it?
 
-8. **Limits.** Any rate limits, recommended sync frequency, or IP allow-listing requirements we should know about?
+8. **Limits and network.** Any rate limits or recommended sync frequency? Your public web-services documentation mentions HTTPS on port 8192: is that the right port for our account, and do you require IP allow-listing? (A test connection to goldwater.attendanceondemand.com:8192 from our cloud host was refused.)
 
 Thank you. Please let me know whether a short call would be easier.
 

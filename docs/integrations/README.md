@@ -89,11 +89,20 @@ Being honest about this matters. Nothing below was invented, but some details co
 
 | Item | Source | Status |
 |---|---|---|
-| Paycor uses OAuth 2.0 plus an "APIm subscription key" sent in the `Ocp-Apim-Subscription-Key` header | Paycor developer docs (via search) | Confirm in portal |
-| Paycor access tokens last about 30 minutes; refresh tokens need `offline_access` | Paycor developer docs (via search) | Confirm in portal |
-| Paycor tokens are issued **per legal entity**; a client admin activates the app for each one | Paycor developer docs (via search) | Confirm in portal |
-| Paycor client secrets expire after 365 days | Paycor developer docs (via search) | Confirm in portal |
-| Paycor token URL `https://apis.paycor.com/sts/v1/common/token`; employees at `/v1/legalentities/{id}/employees` | Paycor docs and third-party integration guides | **Must confirm**; sources disagree on the sandbox host |
+| Paycor uses OAuth 2.0 plus an "APIm subscription key" sent in the `Ocp-Apim-Subscription-Key` header | Paycor developer guides (developers.paycor.com, read 2026-11-25) | **Verified** |
+| Access tokens last 30 minutes; refresh tokens need `offline_access` (joined to the app scope with `+`) | Paycor developer guides | **Verified** |
+| Sign-in uses PKCE (`code_challenge`, method S256); the code expires in 10 minutes and works once | Paycor developer guides | **Verified**, and the app now does this |
+| Tokens are issued **per legal entity**; a Paycor Company/Payroll/HR admin activates the app | Paycor developer guides | **Verified** |
+| Client secrets expire every 365 days (reminder emails at 30/10/1 days) | Paycor developer guides | **Verified** |
+| Token service at `/sts/v1/common` on Paycor's API host | Paycor developer guides and portal code | **Verified** (path); the full token URL `https://apis.paycor.com/sts/v1/common/token` matches third-party guides |
+| Employees at `/v1/legalentities/{legalEntityId}/employees`, paged with `continuationToken` + `hasMoreResults`, at most 100 per page | Paycor developer guides | **Verified** |
+| Rate limit: 1,000 calls per minute per app, counted across all APIs; 429 when exceeded | Paycor developer guides | **Verified** (the app stays at about 240/minute) |
+| Don't auto-retry POSTs that return 500 (risk of double-posting); GETs are safe to retry | Paycor developer guides | **Verified**, and the app follows it |
+| Sandbox and production have separate credentials; sandbox is requested via Support (about 5 business days) | Paycor developer guides | **Verified** |
+| Sandbox API host (`apis.paycor.com` vs `apis-sandbox.paycor.com`) | Shown only as a picture in the guide | **Must confirm** in the portal |
+| Exact paths for "Get Legal Entity" and "Get Employee Payrates by EmployeeID"; employee and pay-rate field names; scope names | API reference loads from `api.paycor.com`, still blocked | **Must confirm** (Test connection prints field names) |
 | AOD offers SOAP "web services" (CC1) using an AOD Access Account, HTTPS port 8192, company identified by web address | AOD public web-services docs | Confirm with AOD |
+| Goldwater's AOD web address is `goldwater.attendanceondemand.com` (employee self-service at `/ess/`) | Reached it on 2026-11-25 | **Verified** |
+| Port 8192 on that host | Connection reset from our cloud environment on 2026-11-25 | **Ask AOD** whether it's the right port and whether they allow-list IP addresses |
 | Exact AOD methods for pulling punches/employees for *your* account | Not found publicly | **Ask AOD** (email template provided) |
 | AOD scheduled export / SFTP availability for your account | Not confirmed | **Ask AOD** |

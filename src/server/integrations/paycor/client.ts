@@ -18,7 +18,15 @@ import type { ConnectionTestResult, PaycorEmployeeRecord, PaycorPayRate, PaycorS
 
 type Json = Record<string, unknown>;
 
-/** Unverified until confirmed in the Paycor portal API reference. */
+/**
+ * Verification status (developers.paycor.com guides, read 2026-11-25):
+ *  - employeesByLegalEntity: path CONFIRMED (quoted verbatim in the paging guide).
+ *  - legalEntity, employeePayRates: the portal lists "Get Legal Entity" and
+ *    "Get Employee Payrates by EmployeeID", but the exact paths live in the API
+ *    reference (served from api.paycor.com, not yet reachable). Still unconfirmed.
+ * Paging is CONFIRMED: continuationToken query parameter, hasMoreResults, max 100 per page.
+ * Rate limit is CONFIRMED: 1,000 calls/minute per app, counted across all APIs.
+ */
 export const PAYCOR_ENDPOINTS = {
   legalEntity: (le: string) => `/v1/legalentities/${le}`,
   employeesByLegalEntity: (le: string) => `/v1/legalentities/${le}/employees`,

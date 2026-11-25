@@ -5,7 +5,7 @@ import { buildSoapEnvelope, parseWsdlOperations } from "@/server/integrations/ao
 import { fetchWithRetry, redact } from "@/server/integrations/http";
 import { assertCanWrite, OwnershipViolation } from "@/server/integrations/ownership";
 import { mapPaycorEmployee, normalizeStatus } from "@/server/integrations/paycor/client";
-import { buildActivationUrl, verifyState } from "@/server/integrations/paycor/oauth";
+import { buildActivationUrl, pkceChallenge, pkceVerifier, verifyState } from "@/server/integrations/paycor/oauth";
 import { decrypt, encrypt } from "@/server/integrations/crypto";
 import type { PaycorConfig } from "@/server/integrations/config";
 
@@ -24,9 +24,21 @@ describe("Paycor OAuth", () => {
     expect(u.searchParams.get("scope")).toBe("myscope offline_access");
     expect(u.searchParams.get("redirect_uri")).toBe(cfg.redirectUri);
     const state = u.searchParams.get("state")!;
-    expect(verifyState(state, nonce)).toEqual({ legalEntityId: "12345", userId: "user-1" });
+    expect(verifyState(state, nonce)).toEqual({ legalEntityId: "12345", userId: "user-1", nonce });
     expect(verifyState(state, "other-nonce")).toBeNull();
     expect(verifyState(state.slice(0, -2) + "xx", nonce)).toBeNull();
+  });
+  it("adds a PKCE S256 challenge whose verifier only the server can compute", () => {
+    const { url, nonce } = buildActivationUrl("12345", "user-1", cfg);
+    const u = new URL(url);
+    expect(u.searchParams.get("code_challenge_method")).toBe("S256");
+    const verifier = pkceVerifier(nonce);
+    expect(verifier).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(u.searchParams.get("code_challenge")).toBe(pkceChallenge(verifier));
+    expect(u.searchParams.get("code_challenge")).not.toBe(verifier);
+    expect(url).not.toContain(verifier);
+    // Paycor requires "+" between scope names, never %2B.
+    expect(url).toContain("scope=myscope+offline_access");
   });
   it("rejects non-numeric legal entity IDs", () => {
     expect(() => buildActivationUrl("abc", "u", cfg)).toThrow(/numeric/);
@@ -68,6 +80,19 @@ describe("HTTP resilience", () => {
     const res = await fetchWithRetry("https://x.test", {}, { fetchImpl: (async () => (calls++, new Response("", { status: 403 }))) as typeof fetch, sleepImpl: noSleep });
     expect(res.status).toBe(403);
     expect(calls).toBe(1);
+  });
+  it("does not retry 5xx or network errors when told not to (single-use POSTs)", async () => {
+    let calls = 0;
+    const res = await fetchWithRetry("https://x.test", { method: "POST" }, { retryServerErrors: false, fetchImpl: (async () => (calls++, new Response("", { status: 500 }))) as typeof fetch, sleepImpl: noSleep });
+    expect(res.status).toBe(500);
+    expect(calls).toBe(1);
+    calls = 0;
+    await expect(fetchWithRetry("https://x.test", {}, { retryNetworkErrors: false, fetchImpl: (async () => { calls++; throw new Error("reset"); }) as typeof fetch, sleepImpl: noSleep })).rejects.toThrow("reset");
+    expect(calls).toBe(1);
+    // 429 is still retried: Paycor processed nothing.
+    calls = 0;
+    const r2 = await fetchWithRetry("https://x.test", {}, { retryServerErrors: false, fetchImpl: (async () => (++calls < 2 ? new Response("", { status: 429 }) : new Response("ok"))) as typeof fetch, sleepImpl: noSleep });
+    expect(r2.status).toBe(200);
   });
   it("redacts secrets from error bodies", () => {
     expect(redact('{"access_token":"abc","x":1} Bearer abc.def')).not.toMatch(/abc/);

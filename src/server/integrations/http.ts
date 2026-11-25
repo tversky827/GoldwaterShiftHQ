@@ -22,7 +22,7 @@ export function explainHttpStatus(system: "Paycor" | "Attendance on Demand", sta
     case 429:
       return `${system} says we sent too many requests. The app will slow down and retry automatically.`;
     default:
-      if (status >= 500) return `${system} had an internal error. This is on their side; the app retried automatically. Try again later and contact their support if it persists.`;
+      if (status >= 500) return `${system} had an internal error. This is on their side. Try again later and contact their support if it persists.`;
       return `${system} returned an unexpected response (HTTP ${status}).`;
   }
 }
@@ -41,6 +41,10 @@ export interface RetryOptions {
   retries?: number;
   baseDelayMs?: number;
   maxDelayMs?: number;
+  /** Retry 5xx responses (default true). Set false for non-idempotent POSTs. */
+  retryServerErrors?: boolean;
+  /** Retry when the request never got a response (default true). */
+  retryNetworkErrors?: boolean;
   /** Injected for tests. */
   fetchImpl?: typeof fetch;
   sleepImpl?: (ms: number) => Promise<void>;
@@ -60,14 +64,14 @@ export async function fetchWithRetry(url: string | URL, init: RequestInit, opts:
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await f(url, init);
-      if (res.status !== 429 && res.status < 500) return res;
+      if (res.status !== 429 && (res.status < 500 || opts.retryServerErrors === false)) return res;
       if (attempt === retries) return res;
       const ra = res.headers.get("retry-after");
       const raMs = ra ? (Number.isFinite(Number(ra)) ? Number(ra) * 1000 : Math.max(0, Date.parse(ra) - Date.now())) : 0;
       await wait(Math.min(max, Math.max(raMs, base * 2 ** attempt + Math.random() * base)));
     } catch (e) {
       lastErr = e;
-      if (attempt === retries) throw e;
+      if (attempt === retries || opts.retryNetworkErrors === false) throw e;
       await wait(Math.min(max, base * 2 ** attempt + Math.random() * base));
     }
   }
