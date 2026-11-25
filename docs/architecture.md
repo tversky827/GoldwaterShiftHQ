@@ -131,12 +131,12 @@ All tables have `id uuid pk default gen_random_uuid()`, `created_at`, `updated_a
 |---|---|---|
 | Overview | Corporate, Regional, Facility admins | 1 (basic) → 5 (analytics) |
 | Schedule | Schedulers, DON, Dept managers, Facility admins | 2 |
-| Open Shifts (marketplace management, claims, callouts) | Schedulers, DON, Facility admins | 3 |
+| Open Shifts (publish, review pick-ups and swaps, callouts) | Schedulers, DON, Facility admins (anyone with a marketplace permission) | 3 ✓ |
 | Regional Pool | Pool manager, Corporate | 4 |
 | Employees | All staff roles (scoped) | 1 |
 | Facilities | Corporate admin (all); facility admins see their own | 1 |
 | Reports | Corporate, Regional, Facility admins | 5 |
-| Settings → Users & Access · Roles · Integrations · Rules · Audit log | Corporate admin | 1 (Rules: 2) |
+| Settings → Users & Access · Roles · Rules · Marketplace · Integrations · Audit log | Corporate admin (Marketplace: also facility admins/schedulers for their facility) | 1 (Rules: 2, Marketplace: 3) |
 
 **Employee (mobile-first PWA)**: bottom tab bar with four destinations plus Home:
 **Home** (next shift, upcoming shifts, available shifts, pending requests, notifications) · **My Schedule** · **Pick Up Shifts** · **My Availability** · **My Profile**.
@@ -148,10 +148,10 @@ A user who is both staff and an employee can switch between the two experiences 
 1. Paycor developer portal access (https://developers.paycor.com/), which requires Paycor approval.
 2. An AppCreator application: client ID, client secret (expires every 365 days), APIm **subscription key** (separate sandbox and production keys).
 3. The app scope name plus `offline_access` (for refresh tokens).
-4. A registered redirect URL: `{APP_BASE_URL}/api/integrations/paycor/callback`.
-5. A Paycor **client admin** must activate the app **for each legal entity**. Tokens are issued per legal entity.
+4. A registered redirect URL: `{APP_BASE_URL}/api/integrations/paycor/callback`, added in AppCreator → Security Connections as an "Approved Return OAuth URL" (no query string allowed).
+5. A Paycor Perform **Company/Payroll/HR admin** must activate the app **for each legal entity** (several legal entities of the same company can be ticked at once). Tokens are issued per legal entity. The sign-in uses PKCE (S256); the one-time code expires in 10 minutes.
 6. Minimum read-only data access: legal entity, employee identity/demographics, employment status and dates, position/job, department, work location. Pay rates **only if approved** (see §6).
-7. Sandbox testing before production.
+7. Sandbox testing before production. A sandbox account is requested through the portal's Support form (category "Sandbox Environment"); Paycor quotes about 5 business days.
 
 Step-by-step owner guide: `docs/integrations/02-paycor-setup.md`.
 
@@ -159,16 +159,16 @@ Step-by-step owner guide: `docs/integrations/02-paycor-setup.md`.
 
 | # | Item | Status |
 |---|---|---|
-| U1 | Exact Paycor endpoint paths, field names, and pagination in **your** account | Implemented defensively (`continuationToken` paging, field fallbacks); "Test connection" reports field *names* for verification. **Must verify in the portal.** |
-| U2 | Paycor sandbox host (`apis.paycor.com` vs `apis-sandbox.paycor.com`) | Sources disagree; configurable |
-| U3 | Paycor rate limits | Unknown; client throttles, honors `Retry-After`, and retries with exponential backoff |
+| U1 | Exact Paycor endpoint paths, field names, and pagination in **your** account | Employees path and `continuationToken`/`hasMoreResults` paging (max 100) **verified** in Paycor's guides. Legal-entity and pay-rate paths, field names and scopes still to verify in the API reference (blocked host `api.paycor.com`); "Test connection" reports field *names* |
+| U2 | Paycor sandbox host (`apis.paycor.com` vs `apis-sandbox.paycor.com`) | Paycor's guide shows it only as an image; still configurable (`PAYCOR_API_BASE_URL`) |
+| U3 | Paycor rate limits | **Verified** (developer guides, 2026-11-25): 1,000 calls/minute per app across all APIs. Client throttles to ~240/min, honors `Retry-After`; token POSTs are not retried on 5xx (Paycor's guidance) |
 | U4 | Paycor time-punch / timecard endpoints | Not confirmed for your account. Timekeeping is planned via Attendance on Demand; Paycor time data is added only if verified |
 | U5 | How "home facility" is represented in Paycor (work location, department, or legal entity) | Mapping table `integration_field_mappings`; unmapped values appear on Reconciliation |
 | U6 | AOD integration method and functions | Awaiting vendor (email template prepared) |
 | **A1** | **Pay rates.** Store only the current base hourly rate (salary converted at 2,080 h/yr), with history, in a restricted table visible only with `pay.view` (Corporate Admin by default). Audit entries never contain amounts | **Approved by owner.** Live import stays off (`PAYCOR_IMPORT_PAY_RATES`) until the endpoint and scope are confirmed in the portal |
 | **A2** | **Overtime / labor rules.** No legal thresholds are hard-coded. Example defaults ship *unconfirmed* (overtime after 40 h/week needs approval, warning at 36, 8 h rest, 16 h/day, 60 h/week cap, overlap always blocked). Schedulers see a reminder until a Corporate Admin confirms them in Settings → Rules | **Owner will confirm later** |
 | **A3** | **Employees missing from a Paycor feed are *not* auto-deactivated.** Only an explicit Paycor status change deactivates someone, because a partial or failed feed must never mass-deactivate staff | Decided (safe default) |
-| A4 | Future assignments of a newly terminated employee are **kept and flagged** for the scheduler, not auto-cancelled (protects coverage visibility). Pending claims and waitlist entries are cancelled automatically | Decided; revisit in Phase 3 |
+| A4 | Future assignments of a newly terminated employee are **kept and flagged** for the scheduler, not auto-cancelled (protects coverage visibility). Pending claims and waitlist entries are cancelled automatically | Decided; kept as is in Phase 3 |
 
 ## 7. Roadmap
 
@@ -176,7 +176,7 @@ Step-by-step owner guide: `docs/integrations/02-paycor-setup.md`.
 |---|---|---|
 | **1. Foundation** | Architecture, full schema + migrations, auth + invitations, RBAC + scoping, audit log, facility management (facilities, departments, units, classifications, shift templates), employee directory + profiles + facility authorizations, Paycor framework on Postgres (manual + scheduled sync, history, duplicate detection, reconciliation, deactivation handling), PWA shell, demo seed | 1, 2 (status), 15, 16, 17, 20 |
 | 2. Scheduling | Staffing budget editor (per-day matrices, template copy between facilities), shift generation from budgets, weekly calendar with drag-and-drop, coverage (4/5), copy week / repeat / multi-week, availability, rules engine (warning / approval / block, overrides with reason), cross-facility hours | 3, 4, 5, 9, 10, 18 |
-| 3. Marketplace | Publishing (single, bulk, scheduled, auto, expiry, withdraw), employee app tabs, claiming with atomic assignment, approval workflows, waitlists, swaps, callouts + escalation, notifications (in-app, email, SMS, push) | 2, 6, 7, 11, 12, 13, 14 |
+| **3. Marketplace** | Publishing (single, bulk, scheduled, auto, expiry, withdraw), employee app tabs, claiming with atomic assignment, approval workflows, waitlists, swaps, callouts + escalation, notifications (in-app, email, SMS, push) | 2, 6, 7, 11, 12, 13, 14 |
 | 4. Regional pool | Pool classification, authorizations, consolidated hours, pool dashboard | 8, 9 |
 | 5. Reporting | Corporate dashboard, budget vs scheduled vs actual, overtime, fill rate, time-to-fill, exports (CSV/Excel) | 15, 18 |
 | 6. Hardening | RLS policies, security review, concurrency load tests, sync failure drills, mobile QA, backups/restore runbook, Sentry | 12, 19, 20 |

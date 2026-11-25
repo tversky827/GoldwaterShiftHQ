@@ -43,6 +43,29 @@
 
 **Acceptance criteria now covered by tests:** 3, 4, 5, 9, 10, and 18, in addition to Phase 1's 1, 2, 12, 15, 16, 17, and 20. 73 tests in total.
 
-## Next: Phase 3, Marketplace
+## Phase 3: Marketplace (complete, except external notification vendors)
 
-Publish open shifts (single, bulk, scheduled, automatic, expiring), the employee Pick Up tab with one-tap claims (using the same rules engine and atomic assignment), approval workflows for claims, waitlists, swaps, callouts with escalation, and notifications (in-app, email, SMS, push).
+**Built and tested**
+- **Publishing open shifts** (Open shifts page, "Publish open shifts"):
+  - single or bulk (pick from every unfilled shift in the next 14 days, filter by position, select all);
+  - publish now or **schedule** for a later date and time (the background job opens it);
+  - **closing time** (default 2 hours before the shift; configurable);
+  - **audience**: the facility's own staff, or also staff authorized there (including the regional pool);
+  - optional **incentive** note and "review every pick-up";
+  - **automatic publishing** of unfilled shifts on published schedules, N hours ahead (Settings → Marketplace, per facility or organization-wide). A withdrawn listing is never re-posted automatically;
+  - **withdraw** (anyone who asked for it is cancelled and told why).
+- **Employee Pick Up tab:** only shifts the employee is qualified for (position) and allowed to work (home facility or authorization). Every card is checked with the **same rules engine** as a scheduler assignment: illegal shifts (e.g. overlapping) are hidden, warnings are shown, and anything needing approval says why. One tap assigns instantly when the rules allow, atomically through the database's capacity lock.
+- **Claim approvals:** pending claims go to reviewers (`claims.review`). Rules are re-checked at decision time; approving an "approval required" rule (e.g. overtime) also needs `assignments.approve`, overriding a block needs `rules.override`, and both need a written explanation, recorded in `rule_overrides` and the audit log. Declines can include a note to the employee.
+- **Waitlists:** when a shift fills, employees can join its waitlist. When an opening is freed (removal, callout), the listing reopens and waitlisted employees are offered it.
+- **Shift swaps:** the employee picks a colleague's shift (same facility and position, next 14 days; colleagues shown as first name + last initial), the colleague accepts, a manager (`swaps.approve`) approves, and both assignments change in one transaction after re-checking every rule for both people.
+- **Callouts:** "I can't make it" in the employee app, or "Record callout" for managers. The shift is posted immediately (urgent) to the facility's qualified staff and managers are notified. If nobody picks it up, it **escalates**: after 30 minutes to authorized staff from other facilities and the pool, then after 60 more to leadership. Times are configurable. Covered or uncovered status is tracked.
+- **Notifications:** in-app, grouped (a bulk publish sends one summary per person). Email, SMS and push are wired through a provider interface and stay off until a vendor is chosen.
+- **Background job** `/api/cron/marketplace` (every 10 minutes in `vercel.json`): opens scheduled listings, expires old ones, auto-publishes, escalates callouts, and delivers queued notifications.
+
+**Tests:** 15 new marketplace tests (90 in total).
+
+**Not done yet / notes**
+- Email/SMS/push vendors: the owner needs to choose them (e.g. an email service and an SMS service). Until then only in-app notifications are sent.
+- Vercel runs a cron job every 10 minutes only on paid plans; on the free plan it runs once a day.
+
+## Next: Phase 4, Regional pool dashboard
