@@ -25,19 +25,22 @@
 
 **Website:** https://developers.paycor.com/
 
-**Do this:**
+**Who:** Paycor's guide says this must be done by someone with the **HR, Company or Payroll Admin** role in Paycor Perform (your normal Paycor). If that's not you, the person who is should do this step.
+
+**Do this** (from Paycor's own guide, verified 2026-11-25):
 1. Open https://developers.paycor.com/ in your browser.
-2. Look for **Sign in**, **Sign up**, or **Join the Developer Portal**.
-3. Register using your **work email**.
-4. Paycor reviews portal registrations, so access is **not instant**. If asked why you need access, say:
+2. On the home screen, under **Existing Paycor Client**, click **Sign Up** (or **Get Started**).
+3. Sign in with your **normal Paycor username and password**.
+4. Paycor asks **who should be the Admin of the Developer Portal account**. Choose yourself (or whoever will manage the integration).
+5. The account is created automatically. Paycor says it **can take up to 5 minutes**. Then **sign out and sign back in**. The person chosen as admin also receives an invitation email.
 
-   > "We are a Paycor client building an internal workforce scheduling application for our skilled nursing facilities. It needs **read-only** access to employee demographic, employment status, job/position, and work location data for our own legal entities. We do not resell the integration."
+**Don't** use "Partner with us": that's for software companies selling to many Paycor clients, and it goes through a long approval.
 
-5. If you can't find a sign-up option, or approval takes more than a few business days, contact your **Paycor account representative** and ask: *"How do we, as a Paycor client, get developer portal and API access to build an internal integration for our own company?"* Paycor may route you to a partner or integrations team.
+**You should see:** a portal home page with menus such as **Guides**, **Explore** (the API reference), and **AppCreator** (where apps are created).
 
-**You should see:** after approval, a portal home page with menus such as **Guides**, **Explore** (the API reference), and an app-management area (Paycor calls it **AppCreator**).
+**If it doesn't work:** an "access denied" or "403" message usually means your Paycor user doesn't have the HR/Company/Payroll Admin role. Ask your Paycor account representative: *"Which users at our company have the Company or HR admin role in Paycor Perform? We need one of them to create our Developer Portal account."*
 
-**Tell Claude:** which of those menus you see, or the exact message if access is pending or denied.
+**Tell Claude:** which menus you see, or the exact message if something went wrong.
 
 ---
 
