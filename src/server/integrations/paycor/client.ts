@@ -14,7 +14,7 @@ import { integrationConnections } from "@/db/schema";
 import { getPaycorConfig, type PaycorConfig } from "../config";
 import { createThrottle, explainHttpStatus, fetchWithRetry, IntegrationHttpError, redact } from "../http";
 import { getAccessToken, SUBSCRIPTION_KEY_HEADER } from "./oauth";
-import type { ConnectionTestResult, PaycorEmployeeRecord, PaycorSource, PaycorStatus } from "./types";
+import type { ConnectionTestResult, PaycorEmployeeRecord, PaycorPayRate, PaycorSource, PaycorStatus } from "./types";
 
 type Json = Record<string, unknown>;
 
@@ -22,6 +22,7 @@ type Json = Record<string, unknown>;
 export const PAYCOR_ENDPOINTS = {
   legalEntity: (le: string) => `/v1/legalentities/${le}`,
   employeesByLegalEntity: (le: string) => `/v1/legalentities/${le}/employees`,
+  employeePayRates: (employeeId: string) => `/v1/employees/${employeeId}/payrates`,
 } as const;
 
 export class PaycorClient implements PaycorSource {
@@ -107,6 +108,40 @@ export class PaycorClient implements PaycorSource {
     for (const le of les) for (const r of await this.getAll(PAYCOR_ENDPOINTS.employeesByLegalEntity(le), le)) records.push(mapPaycorEmployee(r, le));
     return { records, legalEntities: les };
   }
+
+  /**
+   * Pay rates (owner-approved). Off unless PAYCOR_IMPORT_PAY_RATES=true, because
+   * the endpoint and the scope it needs must first be confirmed in the portal.
+   * Takes the primary (first) current rate per employee.
+   */
+  async fetchPayRates(employees: PaycorEmployeeRecord[]): Promise<PaycorPayRate[]> {
+    if (process.env.PAYCOR_IMPORT_PAY_RATES !== "true") return [];
+    const out: PaycorPayRate[] = [];
+    for (const e of employees.filter((x) => x.status !== "terminated" && x.paycorEmployeeId)) {
+      const rows = await this.getAll(PAYCOR_ENDPOINTS.employeePayRates(e.paycorEmployeeId), e.legalEntityId);
+      const current = rows.map((r) => mapPayRate(r, e.paycorEmployeeId)).find((x) => x);
+      if (current) out.push(current);
+    }
+    return out;
+  }
+}
+
+/** Hours used to convert an annual salary to an hourly equivalent (2,080 = 40h × 52). */
+export const SALARY_HOURS_PER_YEAR = 2080;
+
+/** Maps one Paycor pay-rate record. Field names are unverified; adjust after Test connection. */
+export function mapPayRate(r: Json, paycorEmployeeId: string): PaycorPayRate | null {
+  const typeRaw = (pick(r, "payType", "type", "rateType") ?? "hourly").toLowerCase();
+  const amount = Number(pick(r, "payRate", "rate", "amount", "hourlyRate", "annualAmount"));
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const salary = typeRaw.includes("salar") || amount > 500;
+  return {
+    paycorEmployeeId,
+    payType: salary ? "salary" : "hourly",
+    hourlyRate: Math.round((salary ? amount / SALARY_HOURS_PER_YEAR : amount) * 100) / 100,
+    description: pick(r, "description", "payRateDescription", "name"),
+    effectiveFrom: (pick(r, "effectiveDate", "effectiveStartDate", "startDate") ?? new Date().toISOString()).slice(0, 10),
+  };
 }
 
 function recordsOf(body: Json): Json[] {

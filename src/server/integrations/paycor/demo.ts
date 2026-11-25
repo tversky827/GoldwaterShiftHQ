@@ -4,7 +4,7 @@
  * row is flagged is_demo, so it can never be mistaken for real Paycor data.
  */
 import { DEMO_FACILITIES, DEMO_HEADCOUNT, DEMO_POOL_HEADCOUNT, DEMO_POOL_LOCATION, DEMO_POSITIONS } from "@/db/seed/demo-org";
-import type { ConnectionTestResult, PaycorEmployeeRecord, PaycorSource } from "./types";
+import type { ConnectionTestResult, PaycorEmployeeRecord, PaycorPayRate, PaycorSource } from "./types";
 
 const FIRST = ["Avery", "Jordan", "Riley", "Casey", "Morgan", "Taylor", "Quinn", "Skyler", "Drew", "Jamie", "Reese", "Cameron", "Dakota", "Emerson", "Finley", "Harper", "Hayden", "Kendall", "Logan", "Marley", "Parker", "Peyton", "Rowan", "Sawyer", "Shawn", "Sidney", "Toni", "Blake", "Alexis", "Bailey", "Carmen", "Dana", "Elena", "Gabriel", "Imani", "Jada", "Keisha", "Luis", "Maria", "Nia", "Omar", "Priya", "Rosa", "Samuel", "Tanya", "Victor", "Wanda", "Yolanda", "Zoe", "Andre"];
 const LAST = ["Anderson", "Brooks", "Carter", "Diaz", "Edwards", "Foster", "Garcia", "Hughes", "Irving", "Jenkins", "Kim", "Lopez", "Mitchell", "Nguyen", "Owens", "Patel", "Quinlan", "Reyes", "Sanders", "Thompson", "Underwood", "Vasquez", "Washington", "Young", "Zimmerman", "Bennett", "Coleman", "Dawson", "Ellis", "Fleming", "Graham", "Hayes", "Ingram", "Jordan", "Keller", "Lawson", "Morales", "Norris", "Ortiz", "Perry", "Ramsey", "Simmons", "Tucker", "Vaughn", "Walker", "Bishop", "Chandler", "Dixon", "Fisher", "Gibson"];
@@ -62,6 +62,19 @@ export function generateDemoPaycorEmployees(): PaycorEmployeeRecord[] {
   return out;
 }
 
+const DEMO_BASE_RATE: Record<string, number> = { "Registered Nurse": 41, "Licensed Practical Nurse": 29.5, "Certified Nursing Assistant": 18.75, "Certified Medication Aide": 20.5, "Dietary Aide": 15.25, Cook: 17, "Housekeeping Aide": 15 };
+
+/** Fictional, deterministic pay rates for demonstration employees. */
+export function demoPayRates(employees: PaycorEmployeeRecord[]): PaycorPayRate[] {
+  return employees
+    .filter((e) => e.position && DEMO_BASE_RATE[e.position])
+    .map((e) => {
+      const n = Number(e.employeeNumber ?? 0);
+      const bump = ((n * 37) % 25) / 10; // 0–2.4
+      return { paycorEmployeeId: e.paycorEmployeeId, hourlyRate: Math.round((DEMO_BASE_RATE[e.position!] + bump + (e.employmentClass === "PRN" ? 2 : 0)) * 100) / 100, payType: "hourly" as const, description: "Base rate (demonstration)", effectiveFrom: e.hireDate ?? "2026-01-01" };
+    });
+}
+
 export class DemoPaycorSource implements PaycorSource {
   readonly label = "Paycor (demonstration data)";
   readonly isDemo = true;
@@ -71,5 +84,8 @@ export class DemoPaycorSource implements PaycorSource {
   }
   async fetchEmployees() {
     return { records: this.records.map((r) => ({ ...r })), legalEntities: ["DEMO-LE-1"] };
+  }
+  async fetchPayRates(employees: PaycorEmployeeRecord[]): Promise<PaycorPayRate[]> {
+    return demoPayRates(employees);
   }
 }

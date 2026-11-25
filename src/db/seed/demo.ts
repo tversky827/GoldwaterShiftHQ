@@ -35,6 +35,7 @@ import { syncAodTimekeeping } from "@/server/integrations/aod/sync";
 import { DemoPaycorSource } from "@/server/integrations/paycor/demo";
 import { syncPaycorEmployees } from "@/server/integrations/paycor/sync";
 import { seedDefaultRoles } from "./base";
+import { seedDefaultRules } from "./rules";
 import {
   DEMO_BUDGET,
   DEMO_CREDENTIAL_TYPES,
@@ -69,7 +70,7 @@ export const DEMO_USERS: DemoUser[] = [
   { email: "employee@demo.test", name: "", role: "employee", scope: "organization", linkEmployee: true },
 ];
 
-export async function seedDemo(db: Db, opts: { password?: string; now?: Date } = {}) {
+export async function seedDemo(db: Db, opts: { password?: string; now?: Date; schedules?: boolean } = {}) {
   if (process.env.APP_ENV === "production") throw new Error("Refusing to load demonstration data: APP_ENV=production.");
   const [existing] = await db.select().from(organizations).where(eq(organizations.name, DEMO_ORG.name));
   if (existing) return { organizationId: existing.id, created: false };
@@ -77,6 +78,7 @@ export async function seedDemo(db: Db, opts: { password?: string; now?: Date } =
   const [org] = await db.insert(organizations).values({ name: DEMO_ORG.name, defaultTimezone: DEMO_ORG.timezone }).returning();
   const orgId = org.id;
   const roleIds = await seedDefaultRoles(db, orgId);
+  await seedDefaultRules(db, orgId);
   const ctx = { organizationId: orgId, actorType: "system" as const };
 
   // Classifications and credentials
@@ -219,5 +221,46 @@ export async function seedDemo(db: Db, opts: { password?: string; now?: Date } =
     ),
   });
 
+  if (opts.schedules !== false) await seedDemoSchedules(db, orgId, facilityByCode.get("MGR")!.id);
+
   return { organizationId: orgId, created: true };
+}
+
+/**
+ * Builds this week's and next week's schedule for one facility and fills
+ * roughly 80% of openings THROUGH THE RULES ENGINE (nothing bypasses it), so
+ * the demo shows realistic partial coverage.
+ */
+async function seedDemoSchedules(db: Db, orgId: string, facilityId: string) {
+  const { loadActor } = await import("@/server/rbac/access");
+  const { ensureWeek, normalizeWeek } = await import("@/server/scheduling/schedules");
+  const { assignEmployee } = await import("@/server/scheduling/assignments");
+  const { addDaysStr } = await import("@/lib/tz");
+  const [corpUser] = await db.select().from(users).where(eq(users.email, "corporate@demo.test"));
+  const actor = (await loadActor(db, corpUser.id))!;
+  const ctx = { organizationId: orgId, actorUserId: actor.userId, actorType: "system" as const };
+  const [fac] = await db.select().from(facilities).where(eq(facilities.id, facilityId));
+  const thisWeek = normalizeWeek(undefined, fac.timezone);
+  const staff = await db
+    .select({ id: employees.id, positionId: employeePositions.positionId })
+    .from(employees)
+    .innerJoin(employeePositions, eq(employeePositions.employeeId, employees.id))
+    .where(and(eq(employees.homeFacilityId, facilityId), eq(employees.employmentStatus, "active"), eq(employeePositions.isPrimary, true)));
+  const { shifts } = await import("@/db/schema");
+  let k = 0;
+  for (const week of [thisWeek, addDaysStr(thisWeek, 7)]) {
+    const { schedule } = await ensureWeek(db, actor, ctx, facilityId, week);
+    const weekShifts = (await db.select().from(shifts).where(eq(shifts.scheduleId, schedule.id))).sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+    for (const s of weekShifts) {
+      const pool = staff.filter((e) => e.positionId === s.positionId);
+      for (let slot = 0; slot < s.requiredCount; slot++) {
+        if ((k++ * 7) % 10 >= 8) continue; // leave ~20% open
+        for (let tries = 0; tries < pool.length; tries++) {
+          const e = pool[(k + tries) % pool.length];
+          const r = await assignEmployee(db, actor, ctx, { shiftId: s.id, employeeId: e.id, via: "auto" }).catch(() => null);
+          if (r?.status === "assigned") break;
+        }
+      }
+    }
+  }
 }

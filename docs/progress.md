@@ -2,60 +2,47 @@
 
 ## Phase 1: Foundation (complete)
 
+- Full PostgreSQL schema with integrity enforced by the database itself:
+  - no overlapping shifts for one employee;
+  - no overfilled shifts;
+  - no assigning inactive employees;
+  - no hard deletes;
+  - an append-only audit log.
+- Sign-in, invitations, sessions, rate limiting, and role-based access scoped by organization, facility, department, or pool.
+- Facilities, departments, units, classifications, shift templates, the employee directory and profiles, users and roles, and the audit viewer.
+- Paycor and Attendance on Demand integrations: OAuth per legal entity, transactional and idempotent sync, mappings, reconciliation, and history.
+- Corporate overview and the employee PWA shell.
+
+## Phase 2: Scheduling (complete)
+
 **Built and tested**
-- Architecture and full database schema for every entity in the brief (UUID keys, timestamps, audit columns, indexes), with three migrations.
-- Integrity enforced by the database itself:
-  - no overlapping assignments for an employee across facilities;
-  - shifts can't be overfilled, so concurrent claims for the last opening yield exactly one winner;
-  - inactive or terminated employees can't be assigned;
-  - employees and assignments can't be deleted (history is preserved);
-  - the audit log is append-only.
-- Authentication: hashed passwords, server-side sessions, invitation links tied to an existing employee record, sign-in rate limiting, and account lockout.
-- Role-based access: a 38-permission catalog and 8 default roles, editable in Settings → Roles. Grants are scoped to organization, facility, department, or regional pool. Facility users see only their own employees plus employees authorized to work there.
-- Facility management:
-  - facilities (none hard-coded);
-  - departments and units;
-  - job classifications;
-  - shift templates;
-  - staffing budget view (read-only).
-- Employee directory and profiles:
-  - search and filters;
-  - credentials;
-  - facility authorizations;
-  - regional pool classification (with a reason, audited);
-  - invitations to the employee app;
-  - permanent assignment history.
-- Paycor integration on PostgreSQL:
-  - OAuth per legal entity, with encrypted tokens and refresh;
-  - retries with backoff, `Retry-After` handling, and throttling;
-  - fetch-then-apply in a single transaction, idempotent;
-  - deactivation handling;
-  - mapping of locations, departments, and positions;
-  - duplicate detection, reconciliation, and sync history;
-  - manual and scheduled sync (Vercel Cron).
-- Attendance on Demand timekeeping import (demonstration data, export files, and web-services connection check).
-- Corporate overview for all facilities: budget vs actual hours, headcount, PRN, and pool eligibility.
-- Employee mobile PWA: Home, Schedule and Profile work. Pick Up and Availability are labeled "coming".
-- Audit log viewer, scoped by facility.
+- **Staffing budget editor:**
+  - per-day matrix by shift and position, with effective dates and active/inactive status;
+  - "Fill" to copy a row across the week;
+  - copy to another facility (starts inactive for review; shifts matched by code).
+- **Schedule generation:**
+  - turns the active budget into shifts with N openings, in each facility's local time, correct across daylight saving;
+  - safe to re-run ("Sync with budget");
+  - can create several weeks at once.
+- **Weekly scheduler:**
+  - coverage shown as filled/required (e.g. 4/5) in color;
+  - open slots shown explicitly;
+  - drag-and-drop or tap-to-assign from a staff panel with search, position filter, qualifications, cross-facility/pool flags, credential alerts, days off, and projected weekly hours across all facilities;
+  - remove assignments, add or remove openings, add shifts outside the budget;
+  - copy last week, repeat for N weeks, publish (notifies employees in the app);
+  - pending approvals queue.
+- **Rules engine**, evaluated before every assignment, with three outcomes (warning / approval required / block):
+  - overlap, facility authorization, position qualification, credentials;
+  - minimum rest, daily hours, weekly hours, consecutive days;
+  - employment-type hour guidelines, availability, weekly overtime.
+- **Overrides and approvals:** blocks that allow overrides need `rules.override` plus an explanation. Approval-required items go to an approver, or are approved inline by one with an explanation. Every override is recorded in `rule_overrides` and the audit log.
+- **Hours across all facilities**, kept separate: actual, approved, scheduled, and projected (actual hours for past days, scheduled hours for upcoming ones).
+- **Settings → Rules:** edit values and outcomes at organization level, customize per facility, and confirm (A2). The overlap rule can't be weakened.
+- **Employee availability:** days off, preferred shifts and facilities, and maximum weekly hours. These feed the rules engine and the staff panel.
+- **Pay rates (A1, approved):** imported into a restricted table and shown only to Corporate Admins. Live import is switched on once the Paycor endpoint is confirmed.
 
-**Acceptance criteria covered by tests**
+**Acceptance criteria now covered by tests:** 3, 4, 5, 9, 10, and 18, in addition to Phase 1's 1, 2, 12, 15, 16, 17, and 20. 73 tests in total.
 
-| # | Criterion | Test |
-|---|---|---|
-| 1 | An active Paycor employee appears | `tests/paycor-sync.test.ts` |
-| 2 | An inactive employee can't be assigned (database level); pending claims cancelled | `tests/paycor-sync.test.ts` |
-| 10 | Overlapping shifts blocked | `tests/integrity.test.ts` |
-| 12 | Two employees can't take one opening | `tests/integrity.test.ts` |
-| 15 | Corporate sees all facilities | `tests/access.test.ts` |
-| 16 | Facility users can't access other facilities | `tests/access.test.ts` |
-| 17 | History survives deactivation | `tests/paycor-sync.test.ts`, `tests/integrity.test.ts` |
-| 20 | An integration outage doesn't corrupt data | `tests/paycor-sync.test.ts` |
+## Next: Phase 3, Marketplace
 
-## Next: Phase 2, Scheduling
-
-1. Staffing budget editor: per-day matrices, effective dates, copying between facilities.
-2. Shift generation from budgets, in each facility's local time.
-3. Weekly calendar with drag-and-drop, coverage (e.g. 4/5), copy week / repeat / multi-week.
-4. Rules engine (warning / approval required / hard block, overrides with explanation) and cross-facility hour projections.
-
-**Decisions waiting on the owner:** A1 (pay rates) and A2 (confirm overtime and labor rule values). See `docs/architecture.md` §6.
+Publish open shifts (single, bulk, scheduled, automatic, expiring), the employee Pick Up tab with one-tap claims (using the same rules engine and atomic assignment), approval workflows for claims, waitlists, swaps, callouts with escalation, and notifications (in-app, email, SMS, push).

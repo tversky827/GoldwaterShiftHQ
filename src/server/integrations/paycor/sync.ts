@@ -17,6 +17,7 @@ import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import type { Db, Tx } from "@/db";
 import {
   departments,
+  employeePayRates,
   employeePositions,
   employees,
   integrationConnections,
@@ -32,7 +33,7 @@ import { log } from "../../log";
 import { getPaycorConfig, missingPaycorSettings } from "../config";
 import { IntegrationHttpError } from "../http";
 import { assertCanWrite } from "../ownership";
-import type { PaycorEmployeeRecord, PaycorSource } from "./types";
+import type { PaycorEmployeeRecord, PaycorPayRate, PaycorSource } from "./types";
 
 const STALE_RUN_MS = 30 * 60 * 1000;
 
@@ -135,14 +136,28 @@ export async function syncPaycorEmployees(
     return fail(e instanceof IntegrationHttpError ? e.plainEnglish : (e as Error).message, e instanceof IntegrationHttpError ? e.bodySnippet : undefined);
   }
 
+  // Pay rates (owner-approved, decision A1). Failure here never blocks the employee sync.
+  let payRates: PaycorPayRate[] = [];
+  let payRateProblem: string | null = null;
+  if (opts.source.fetchPayRates) {
+    try {
+      payRates = await opts.source.fetchPayRates(records);
+    } catch (e) {
+      payRateProblem = `Pay rates were not updated: ${e instanceof IntegrationHttpError ? e.plainEnglish : (e as Error).message}`;
+    }
+  }
+
   // 2. APPLY in one transaction.
   assertCanWrite("paycor", PAYCOR_FIELDS);
+  if (payRates.length) assertCanWrite("paycor", ["hourlyRate", "payType"]);
   const ctx: AuditContext = { ...(opts.ctx ?? { organizationId: orgId }), organizationId: orgId, actorType: "integration", actorUserId: opts.actorUserId ?? null };
   const counts = { received: records.length, created: 0, updated: 0, unchanged: 0, deactivated: 0, skipped: 0, errors: 0 };
   const problems: string[] = [];
   const unmapped = { locations: {} as Record<string, number>, positions: {} as Record<string, number>, departments: {} as Record<string, number> };
   const bump = (m: Record<string, number>, k?: string) => k && (m[k] = (m[k] ?? 0) + 1);
   const futureAssignmentsFlagged: string[] = [];
+  let payChanges = 0;
+  if (payRateProblem) problems.push(payRateProblem);
 
   try {
     await db.transaction(async (tx) => {
@@ -237,6 +252,8 @@ export async function syncPaycorEmployees(
         if (positionId) await syncPrimaryPosition(tx, employeeId, positionId);
       }
 
+      if (payRates.length) payChanges = await applyPayRates(tx, orgId, payRates, opts.source.isDemo);
+
       if (seen.size) {
         await tx.update(employees).set({ lastSyncedAt: now }).where(and(eq(employees.organizationId, orgId), inArray(employees.paycorEmployeeId, [...seen])));
       }
@@ -264,7 +281,7 @@ export async function syncPaycorEmployees(
       recordsSkipped: counts.skipped,
       errorCount: counts.errors,
       errorSummary: problems.slice(0, 5).join(" ") || null,
-      details: { problems: problems.slice(0, 200), unmapped, notInFeed, futureAssignmentsFlagged },
+      details: { problems: problems.slice(0, 200), unmapped, notInFeed, futureAssignmentsFlagged, payRatesReceived: payRates.length, payRatesChanged: payChanges },
     })
     .where(eq(integrationSyncLogs.id, logRow.id));
   await touchConnections(db, orgId, environment, { lastSuccessAt: new Date(), lastError: counts.errors ? problems[0] : null, status: "connected" }, opts.source.isDemo);
@@ -275,6 +292,32 @@ export async function syncPaycorEmployees(
     counts,
     message: `${opts.source.label}: ${counts.received} received · ${counts.created} new · ${counts.updated} updated · ${counts.unchanged} unchanged${counts.deactivated ? ` · ${counts.deactivated} deactivated` : ""}${counts.errors ? ` · ${counts.errors} need attention` : ""}.`,
   };
+}
+
+/**
+ * Keeps one open (current) pay rate per employee. A changed rate closes the
+ * previous one (history kept) and opens a new one. Audit entries never
+ * contain the amounts themselves.
+ */
+async function applyPayRates(tx: Tx, orgId: string, rates: PaycorPayRate[], isDemo: boolean): Promise<number> {
+  const emps = await tx.select({ id: employees.id, paycorId: employees.paycorEmployeeId }).from(employees).where(eq(employees.organizationId, orgId));
+  const byPaycor = new Map(emps.map((e) => [e.paycorId, e.id]));
+  const current = await tx.select().from(employeePayRates).where(sql`${employeePayRates.effectiveTo} is null`);
+  const currentByEmp = new Map(current.map((c) => [c.employeeId, c]));
+  const today = new Date().toISOString().slice(0, 10);
+  let changed = 0;
+  for (const r of rates) {
+    const employeeId = byPaycor.get(r.paycorEmployeeId);
+    if (!employeeId) continue;
+    const cur = currentByEmp.get(employeeId);
+    const amount = r.hourlyRate.toFixed(2);
+    if (cur && Number(cur.hourlyRate).toFixed(2) === amount && cur.payType === r.payType) continue;
+    const from = r.effectiveFrom > today ? today : r.effectiveFrom;
+    if (cur) await tx.update(employeePayRates).set({ effectiveTo: from > cur.effectiveFrom ? from : today }).where(eq(employeePayRates.id, cur.id));
+    await tx.insert(employeePayRates).values({ employeeId, hourlyRate: amount, payType: r.payType, description: r.description ?? null, effectiveFrom: cur && from <= cur.effectiveFrom ? today : from, source: isDemo ? "demo" : "paycor", isDemo });
+    changed++;
+  }
+  return changed;
 }
 
 async function syncPrimaryPosition(tx: Tx, employeeId: string, positionId: string) {

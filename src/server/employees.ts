@@ -4,6 +4,7 @@ import {
   credentialTypes,
   departments,
   employeeCredentials,
+  employeePayRates,
   employeeFacilityAuthorizations,
   employeePositions,
   employees,
@@ -114,6 +115,9 @@ export async function getEmployeeProfile(db: Db, actor: Actor, employeeId: strin
     .where(and(eq(employees.id, employeeId), eq(employees.organizationId, actor.organizationId)));
   if (!e) throw new NotFoundError("Employee");
   const showContact = isSelf || (await canOnEmployee(db, actor, "employees.view_contact", employeeId));
+  // Pay is restricted: never shown to the employee's peers, only with pay.view.
+  const showPay = !isSelf && (await canOnEmployee(db, actor, "pay.view", employeeId));
+  const payRates = showPay ? await db.select().from(employeePayRates).where(eq(employeePayRates.employeeId, employeeId)).orderBy(desc(employeePayRates.effectiveFrom)).limit(10) : [];
 
   const [pos, creds, auths, history, [account]] = await Promise.all([
     db
@@ -155,6 +159,8 @@ export async function getEmployeeProfile(db: Db, actor: Actor, employeeId: strin
     facilityName: e.facilityName,
     departmentName: e.departmentName,
     showContact,
+    showPay,
+    payRates,
     positions: pos,
     credentials: creds,
     authorizations: auths,

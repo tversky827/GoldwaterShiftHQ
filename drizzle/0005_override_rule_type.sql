@@ -1,0 +1,1 @@
+ALTER TABLE "rule_overrides" ALTER COLUMN "rule_type" SET DATA TYPE text;

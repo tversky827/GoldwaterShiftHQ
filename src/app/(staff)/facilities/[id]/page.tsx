@@ -9,6 +9,7 @@ import { requirePermission } from "@/server/context";
 import { getFacility, getStaffingBudgets } from "@/server/facilities";
 import { can } from "@/server/rbac/access";
 import { AddDepartment, AddShift, AddUnit, PositionsForm, ToggleDepartment, ToggleShift } from "./dialogs";
+import { NewBudgetDialog } from "./budgets/[templateId]/budget-dialogs";
 
 export const dynamic = "force-dynamic";
 
@@ -106,7 +107,7 @@ export default async function FacilityPage({ params, searchParams }: { params: P
               <SetupRow href={`/facilities/${id}?tab=structure`} label="Units" value={data.departments.reduce((n, d) => n + d.units.length, 0)} />
               <SetupRow href={`/facilities/${id}?tab=shifts`} label="Shifts" value={activeShifts.length} />
               <SetupRow href={`/facilities/${id}?tab=classifications`} label="Job classifications" value={enabledPositions.length} />
-              <SetupRow href={`/facilities/${id}?tab=budget`} label="Budgeted hours / week" value={budgets.reduce((n, b) => n + b.weeklyHours, 0).toLocaleString()} />
+              <SetupRow href={`/facilities/${id}?tab=budget`} label="Budgeted hours / week" value={budgets.filter((b) => b.template.isActive).reduce((n, b) => n + b.weeklyHours, 0).toLocaleString()} />
             </CardBody>
           </Card>
         </div>
@@ -185,9 +186,14 @@ export default async function FacilityPage({ params, searchParams }: { params: P
 
       {tab === "budget" && (
         <div className="space-y-4">
+          {can(actor, "budgets.manage", { facilityId: id }) && (
+            <div className="flex justify-end">
+              <NewBudgetDialog facilityId={id} departments={data.departments.filter((d) => d.isActive).map((d) => ({ id: d.id, name: d.name }))} />
+            </div>
+          )}
           {budgets.length === 0 ? (
             <Card>
-              <EmptyState icon={<Layers />} title="No staffing budget yet" description="Staffing budgets set how many of each position you need per shift and day. The budget editor arrives with the scheduler." />
+              <EmptyState icon={<Layers />} title="No staffing budget yet" description="Staffing budgets set how many of each position you need per shift and day. Schedules are generated from them." />
             </Card>
           ) : (
             budgets.map((b) => (
@@ -195,7 +201,14 @@ export default async function FacilityPage({ params, searchParams }: { params: P
                 <CardHeader
                   title={b.template.name}
                   description={`${b.departmentName ?? "All departments"} · effective ${b.template.effectiveFrom}${b.template.effectiveTo ? ` to ${b.template.effectiveTo}` : ""} · ${b.weeklyHours.toLocaleString()} budgeted hours / week`}
-                  action={<Badge tone="accent">Budget</Badge>}
+                  action={
+                    <span className="flex items-center gap-2">
+                      <Badge tone={b.template.isActive ? "positive" : "neutral"}>{b.template.isActive ? "Active" : "Inactive"}</Badge>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/facilities/${id}/budgets/${b.template.id}`}>{can(actor, "budgets.manage", { facilityId: id }) ? "Edit" : "View"}</Link>
+                      </Button>
+                    </span>
+                  }
                 />
                 <div className="pt-3">
                   <Table>
@@ -231,7 +244,7 @@ export default async function FacilityPage({ params, searchParams }: { params: P
               </Card>
             ))
           )}
-          <p className="text-[13px] text-faint">Budgets are read-only in this release. Editing, per-day matrices and copying between facilities come with the scheduler.</p>
+          <p className="text-[13px] text-faint">Budgets describe need only. Changes apply to schedules when you click “Sync with budget” on the schedule.</p>
         </div>
       )}
 

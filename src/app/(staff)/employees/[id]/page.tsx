@@ -197,6 +197,27 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
             </CardBody>
           </Card>
 
+          {p.showPay && (
+            <Card>
+              <CardHeader title="Compensation" description="From Paycor. Visible only to people with pay access." />
+              <CardBody className="space-y-2 text-[14px]">
+                {p.payRates.length === 0 ? (
+                  <span className="text-muted">No pay rate imported.</span>
+                ) : (
+                  p.payRates.map((r) => (
+                    <div key={r.id} className={r.effectiveTo ? "flex justify-between text-faint" : "flex justify-between"}>
+                      <span>
+                        {r.effectiveTo ? `${formatDate(r.effectiveFrom)} – ${formatDate(r.effectiveTo)}` : `Current · since ${formatDate(r.effectiveFrom)}`}
+                        {r.payType === "salary" && " · salaried (hourly equivalent)"}
+                      </span>
+                      <span className="tabular font-semibold">${Number(r.hourlyRate).toFixed(2)}/hr</span>
+                    </div>
+                  ))
+                )}
+              </CardBody>
+            </Card>
+          )}
+
           <Card>
             <CardHeader title="App access" />
             <CardBody className="text-[14px]">

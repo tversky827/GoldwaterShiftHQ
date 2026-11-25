@@ -232,10 +232,10 @@ export async function createPosition(db: Db, actor: Actor, ctx: AuditContext, in
   });
 }
 
-/** Read-only view of the facility's current staffing budget(s). Editing arrives with Phase 2. */
+/** Summary of the facility's staffing budgets (active first). Edited in the budget editor. */
 export async function getStaffingBudgets(db: Db, actor: Actor, facilityId: string) {
   assertCan(actor, "budgets.view", { facilityId });
-  const templates = await db.select().from(staffingBudgetTemplates).where(and(eq(staffingBudgetTemplates.facilityId, facilityId), eq(staffingBudgetTemplates.isActive, true)));
+  const templates = (await db.select().from(staffingBudgetTemplates).where(eq(staffingBudgetTemplates.facilityId, facilityId))).sort((x, y) => Number(y.isActive) - Number(x.isActive) || y.effectiveFrom.localeCompare(x.effectiveFrom));
   const out = [];
   for (const t of templates) {
     const reqs = await db

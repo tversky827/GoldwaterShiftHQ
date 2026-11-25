@@ -19,6 +19,8 @@ const db = await getDb();
 let [org] = await db.select().from(organizations).where(eq(organizations.name, args.org));
 if (!org) [org] = await db.insert(organizations).values({ name: args.org }).returning();
 const roleIds = await seedDefaultRoles(db, org.id);
+const { seedDefaultRules } = await import("../src/db/seed/rules.ts");
+await seedDefaultRules(db, org.id);
 let [u] = await db.select().from(users).where(sql`lower(${users.email}) = ${args.email.toLowerCase()}`);
 if (!u) {
   [u] = await db.insert(users).values({ organizationId: org.id, email: args.email.toLowerCase(), displayName: args.name, status: "invited" }).returning();

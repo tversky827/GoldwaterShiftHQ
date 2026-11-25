@@ -72,7 +72,8 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
     name: "Corporate Admin",
     description: "All facilities. Configuration, budgets, policies, integrations and permissions.",
     defaultScope: "organization",
-    permissions: ALL_PERMISSIONS.filter((p) => !p.startsWith("self.") && p !== "pay.view"),
+    // pay.view included: owner approved pay-rate import for corporate use (decision A1).
+    permissions: ALL_PERMISSIONS.filter((p) => !p.startsWith("self.")),
   },
   {
     key: "regional_director",

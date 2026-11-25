@@ -184,3 +184,13 @@ On the dashboard, click **Test connection** on the Paycor card.
 ## Later: payroll and timekeeping endpoints
 
 After the basics work, we'll look in the portal's **Explore** section for payroll-hours or earnings endpoints and confirm whether they're enabled for your account. The app shows "Payroll (Paycor): not yet available" until then. Not every Paycor endpoint is enabled for every customer, so we'll check rather than assume.
+
+## Later: pay rates (approved)
+
+You approved importing pay rates. The app stores only the **current base hourly rate** (salaried pay is converted to an hourly equivalent). Only Corporate Admins can see it by default.
+
+To turn it on with real data:
+1. In the portal's **Explore** section, look for an employee **pay rates** endpoint and the permission (scope) it needs. Tell Claude the names you see.
+2. Add that permission to the app in AppCreator, then reconnect each legal entity, since new permissions require re-approval.
+3. Set `PAYCOR_IMPORT_PAY_RATES=true` in secure settings.
+4. Run **Sync now**. The employee profile will show a **Compensation** card for Corporate Admins.

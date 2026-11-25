@@ -8,7 +8,7 @@ process.env.APP_ENCRYPTION_KEY ??= "test-encryption-key";
 
 export async function demoDb(): Promise<{ db: Db; orgId: string }> {
   const db = await createTestDb();
-  const { organizationId } = await seedDemo(db, { password: "Test-Password-123" });
+  const { organizationId } = await seedDemo(db, { password: "Test-Password-123", schedules: false });
   return { db, orgId: organizationId };
 }
 

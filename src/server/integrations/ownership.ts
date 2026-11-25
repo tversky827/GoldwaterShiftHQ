@@ -27,6 +27,7 @@ export const OWNERSHIP_MATRIX: OwnershipRule[] = [
   { data: "Shift claims", owner: "snf_workforce", fields: [], verified: true },
   { data: "Clock punches", owner: "aod", fields: ["punchIn", "punchOut"], verified: false },
   { data: "Actual hours worked", owner: "aod", fields: ["hours", "approved"], verified: false, note: "Subject to verification: confirm whether approved hours are final in AOD or adjusted in Paycor payroll." },
+  { data: "Pay rates", owner: "paycor", fields: ["hourlyRate", "payType"], verified: false, note: "Imported with owner approval (A1). Visible only with pay.view." },
   { data: "Payroll calculations", owner: "paycor", fields: [], verified: false, note: "Read-only. This app never submits payroll adjustments." },
   { data: "Overtime projections", owner: "snf_workforce", fields: [], verified: true },
 ];

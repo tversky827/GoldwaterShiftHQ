@@ -111,3 +111,61 @@ export async function createPositionAction(_: FormState, fd: FormData): Promise<
   revalidatePath("/settings/classifications");
   return res;
 }
+
+export async function updateRuleAction(_: FormState, fd: FormData): Promise<FormState> {
+  const { updateRule, PARAM_FIELDS } = await import("@/server/scheduling/rule-settings");
+  const ruleType = String(fd.get("ruleType"));
+  const params: Record<string, string> = {};
+  for (const f of PARAM_FIELDS[ruleType] ?? []) params[f.key] = String(fd.get(`param:${f.key}`) ?? "");
+  const res = await runAction(async ({ db, actor, audit }) => {
+    await updateRule(db, actor, audit, String(fd.get("ruleId")), { outcome: String(fd.get("outcome")) as "warning", overridable: fd.get("overridable") === "on", isActive: fd.get("isActive") === "on", params });
+    return { ok: true, message: "Saved. This rule now needs to be confirmed again." };
+  });
+  revalidatePath("/settings/rules");
+  return res;
+}
+
+export async function customizeRuleAction(_: FormState, fd: FormData): Promise<FormState> {
+  const { customizeForFacility } = await import("@/server/scheduling/rule-settings");
+  const res = await runAction(async ({ db, actor, audit }) => {
+    await customizeForFacility(db, actor, audit, String(fd.get("ruleId")), String(fd.get("facilityId")));
+  });
+  revalidatePath("/settings/rules");
+  return res;
+}
+
+export async function removeFacilityRuleAction(_: FormState, fd: FormData): Promise<FormState> {
+  const { removeFacilityRule } = await import("@/server/scheduling/rule-settings");
+  const res = await runAction(async ({ db, actor, audit }) => {
+    await removeFacilityRule(db, actor, audit, String(fd.get("ruleId")));
+  });
+  revalidatePath("/settings/rules");
+  return res;
+}
+
+export async function updateOvertimeAction(_: FormState, fd: FormData): Promise<FormState> {
+  const { updateOvertimeRule } = await import("@/server/scheduling/rule-settings");
+  const res = await runAction(async ({ db, actor, audit }) => {
+    await updateOvertimeRule(db, actor, audit, {
+      weeklyThresholdHours: String(fd.get("weeklyThresholdHours") ?? ""),
+      warningAtHours: String(fd.get("warningAtHours") ?? ""),
+      workweekStartDay: Number(fd.get("workweekStartDay")),
+      outcome: String(fd.get("outcome")) as "warning",
+      overridable: fd.get("overridable") === "on",
+    });
+    return { ok: true, message: "Overtime rule saved. It now needs to be confirmed again." };
+  });
+  revalidatePath("/settings/rules");
+  return res;
+}
+
+export async function confirmRulesAction(_: FormState, fd: FormData): Promise<FormState> {
+  const { confirmRules } = await import("@/server/scheduling/rule-settings");
+  const res = await runAction(async ({ db, actor, audit }) => {
+    await confirmRules(db, actor, audit, String(fd.get("statement") ?? ""));
+    return { ok: true, message: "Rules confirmed. The warning banner is removed from schedules." };
+  });
+  revalidatePath("/settings/rules");
+  revalidatePath("/schedule");
+  return res;
+}

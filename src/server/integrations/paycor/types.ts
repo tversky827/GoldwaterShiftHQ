@@ -20,6 +20,15 @@ export interface PaycorEmployeeRecord {
   location?: string;
 }
 
+/** A current pay rate. Imported with owner approval (decision A1); restricted to `pay.view`. */
+export interface PaycorPayRate {
+  paycorEmployeeId: string;
+  hourlyRate: number;
+  payType: "hourly" | "salary";
+  description?: string;
+  effectiveFrom: string;
+}
+
 export interface ConnectionTestResult {
   ok: boolean;
   message: string;
@@ -33,4 +42,6 @@ export interface PaycorSource {
   testConnection(): Promise<ConnectionTestResult>;
   /** Must fetch EVERYTHING before returning; sync applies nothing on failure. */
   fetchEmployees(): Promise<{ records: PaycorEmployeeRecord[]; legalEntities: string[] }>;
+  /** Optional: current pay rates. A failure here never blocks the employee sync. */
+  fetchPayRates?(employees: PaycorEmployeeRecord[]): Promise<PaycorPayRate[]>;
 }

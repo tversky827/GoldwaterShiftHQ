@@ -430,12 +430,19 @@ export const employeePayRates = pgTable(
     id: id(),
     employeeId: uuid().notNull().references(() => employees.id),
     hourlyRate: numeric({ precision: 10, scale: 2 }).notNull(),
+    /** 'hourly' | 'salary' as reported by Paycor; salary is converted to an hourly equivalent. */
+    payType: text().notNull().default("hourly"),
+    description: text(),
     effectiveFrom: date().notNull(),
     effectiveTo: date(),
     source: recordSource().notNull(),
+    isDemo: boolean().notNull().default(false),
     ...timestamps,
   },
-  (t) => [index("employee_pay_rates_emp_idx").on(t.employeeId, t.effectiveFrom)],
+  (t) => [
+    index("employee_pay_rates_emp_idx").on(t.employeeId, t.effectiveFrom),
+    uniqueIndex("employee_pay_rates_current_uq").on(t.employeeId).where(sql`${t.effectiveTo} is null`),
+  ],
 );
 
 export const employeeAvailability = pgTable(
@@ -542,6 +549,7 @@ export const schedules = pgTable(
   },
   (t) => [
     index("schedules_facility_period_idx").on(t.facilityId, t.periodStart),
+    unique("schedules_facility_dept_period_uq").on(t.facilityId, t.departmentId, t.periodStart).nullsNotDistinct(),
     check("schedules_period_ck", sql`${t.periodEnd} >= ${t.periodStart}`),
   ],
 );
@@ -758,6 +766,9 @@ export const approvalRequests = pgTable(
     facilityId: uuid().references(() => facilities.id),
     subjectType: text().notNull(),
     subjectId: uuid().notNull(),
+    employeeId: uuid().references(() => employees.id),
+    /** What is being requested (e.g. the assignment) plus the rule evaluation snapshot. */
+    payload: jsonb(),
     requestedBy: uuid().references(() => users.id),
     status: approvalStatus().notNull().default("pending"),
     decidedBy: uuid().references(() => users.id),
@@ -771,7 +782,8 @@ export const approvalRequests = pgTable(
 export const ruleOverrides = pgTable("rule_overrides", {
   id: id(),
   ruleId: uuid().references(() => schedulingRules.id),
-  ruleType: ruleType().notNull(),
+  /** A scheduling rule type, or "overtime" / "employee_active". */
+  ruleType: text().notNull(),
   subjectType: text().notNull(),
   subjectId: uuid().notNull(),
   employeeId: uuid().references(() => employees.id),
