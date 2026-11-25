@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * Real session validation and every permission check happen on the server
  * (src/server/context.ts) because middleware can't reach the database.
  */
-const PUBLIC = [/^\/login/, /^\/invite\//, /^\/forbidden/, /^\/api\/cron\//, /^\/manifest\.webmanifest$/, /^\/sw\.js$/, /^\/icons\//, /^\/offline/];
+const PUBLIC = [/^\/api\/health$/, /^\/login/, /^\/invite\//, /^\/forbidden/, /^\/api\/cron\//, /^\/manifest\.webmanifest$/, /^\/sw\.js$/, /^\/icons\//, /^\/offline/];
 
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;

@@ -1,5 +1,5 @@
-import { and, eq } from "drizzle-orm";
-import { createTestDb, type Db } from "@/db";
+import { and, eq, sql } from "drizzle-orm";
+import { connectAsAppRole, createTestDb, type Db } from "@/db";
 import { facilities, positions, shifts, users } from "@/db/schema";
 import { seedDemo } from "@/db/seed/demo";
 import { loadActor, type Actor } from "@/server/rbac/access";
@@ -9,6 +9,14 @@ process.env.APP_ENCRYPTION_KEY ??= "test-encryption-key";
 export async function demoDb(): Promise<{ db: Db; orgId: string }> {
   const db = await createTestDb();
   const { organizationId } = await seedDemo(db, { password: "Test-Password-123", schedules: false });
+  // TEST_AS_APP_ROLE=1 (with TEST_DATABASE_URL): run the test as the restricted
+  // application role, so row-level security applies to everything it does.
+  if (process.env.TEST_AS_APP_ROLE === "1" && process.env.TEST_DATABASE_URL) {
+    const app = await connectAsAppRole(db, organizationId);
+    const r = (await app.execute(sql`select current_user as u`)) as unknown as { rows: { u: string }[] };
+    if (!r.rows[0].u.startsWith("app_")) throw new Error("TEST_AS_APP_ROLE: not connected as the restricted role");
+    return { db: app, orgId: organizationId };
+  }
   return { db, orgId: organizationId };
 }
 

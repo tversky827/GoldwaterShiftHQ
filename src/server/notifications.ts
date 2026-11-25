@@ -168,18 +168,25 @@ function linkFor(n: { category: string; userId: string | null }, isEmployee: boo
  * provider, and marked failed if the provider refuses it.
  */
 export async function deliverPending(db: Db, limit = 200) {
+  // Claim a batch atomically. `for update skip locked` lets several servers
+  // claim different rows at once, and re-checking status = 'pending' in the
+  // outer update means a row another server just claimed is never taken twice.
   const claimed = await db
     .update(notifications)
     .set({ status: "sent", sentAt: new Date() })
     .where(
-      inArray(
-        notifications.id,
-        db
-          .select({ id: notifications.id })
-          .from(notifications)
-          .where(and(eq(notifications.status, "pending"), inArray(notifications.channel, ["email", "sms", "push"])))
-          .orderBy(asc(notifications.createdAt))
-          .limit(limit),
+      and(
+        eq(notifications.status, "pending"),
+        inArray(
+          notifications.id,
+          db
+            .select({ id: notifications.id })
+            .from(notifications)
+            .where(and(eq(notifications.status, "pending"), inArray(notifications.channel, ["email", "sms", "push"])))
+            .orderBy(asc(notifications.createdAt))
+            .limit(limit)
+            .for("update", { skipLocked: true }),
+        ),
       ),
     )
     .returning();
