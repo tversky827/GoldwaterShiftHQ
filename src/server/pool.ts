@@ -152,7 +152,7 @@ export async function poolDashboard(db: Db, actor: Actor, opts: { weekOffset?: n
       hours: { scheduled: r1(h.scheduled), actual: r1(h.actual), projected: r1(h.projected), byFacility: Object.entries(h.byFacility).map(([fid, v]) => ({ code: facCode.get(fid) ?? "?", name: v.name, scheduled: r1(v.scheduled), actual: r1(v.actual) })).filter((x) => x.scheduled > 0 || x.actual > 0) },
       limit,
       limitSource: pref ? "preference" : "overtime",
-      remaining: Math.max(0, r1(limit - h.projected)),
+      remaining: Math.max(0, r1(limit - r1(h.projected))),
       nextShift: next ? { startsAt: next.startsAt, facilityName: next.facilityName, facilityTimezone: next.facilityTimezone, positionCode: next.positionCode } : null,
       credentialAlerts: alerts,
     };

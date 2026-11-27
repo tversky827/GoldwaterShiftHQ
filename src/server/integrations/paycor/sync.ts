@@ -17,6 +17,7 @@ import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import type { Db, Tx } from "@/db";
 import {
   departments,
+  facilities,
   employeePayRates,
   employeePositions,
   employees,
@@ -56,6 +57,7 @@ export interface SyncOutcome {
 
 interface Lookups {
   locationToFacility: Map<string, string>;
+  legalEntityToFacility: Map<string, string>; // Paycor legal entity ID -> facilityId (fallback when the location doesn't map)
   departmentMap: Map<string, string>; // `${facilityId}|${raw}` or `*|${raw}` -> departmentId
   deptByFacilityName: Map<string, string>; // `${facilityId}|${name}` -> departmentId
   positionMap: Map<string, string>; // raw lower -> positionId
@@ -65,14 +67,18 @@ async function loadLookups(db: Db | Tx, orgId: string): Promise<Lookups> {
   const maps = await db.select().from(integrationFieldMappings).where(and(eq(integrationFieldMappings.organizationId, orgId), eq(integrationFieldMappings.provider, "paycor")));
   const depts = await db.select({ id: departments.id, facilityId: departments.facilityId, name: departments.name }).from(departments);
   const pos = await db.select().from(positions).where(eq(positions.organizationId, orgId));
-  const l: Lookups = { locationToFacility: new Map(), departmentMap: new Map(), deptByFacilityName: new Map(), positionMap: new Map() };
+  const facs = await db.select({ id: facilities.id, name: facilities.name }).from(facilities).where(eq(facilities.organizationId, orgId));
+  const l: Lookups = { locationToFacility: new Map(), legalEntityToFacility: new Map(), departmentMap: new Map(), deptByFacilityName: new Map(), positionMap: new Map() };
   for (const d of depts) l.deptByFacilityName.set(`${d.facilityId}|${d.name.toLowerCase()}`, d.id);
   for (const p of pos) {
     l.positionMap.set(p.name.toLowerCase(), p.id);
     l.positionMap.set(p.code.toLowerCase(), p.id);
   }
+  // A Paycor location spelled exactly like a facility name needs no mapping; saved mappings win.
+  for (const f of facs) l.locationToFacility.set(f.name.toLowerCase(), f.id);
   for (const m of maps) {
     const key = m.sourceValue.toLowerCase();
+    if (m.sourceType === "legal_entity" && m.facilityId) l.legalEntityToFacility.set(m.sourceValue.trim(), m.facilityId);
     if (m.sourceType === "location" && m.facilityId) l.locationToFacility.set(key, m.facilityId);
     if (m.sourceType === "department" && m.departmentId) l.departmentMap.set(`${m.facilityId ?? "*"}|${key}`, m.departmentId);
     if (m.sourceType === "position" && m.positionId) l.positionMap.set(key, m.positionId);
@@ -153,7 +159,7 @@ export async function syncPaycorEmployees(
   const ctx: AuditContext = { ...(opts.ctx ?? { organizationId: orgId }), organizationId: orgId, actorType: "integration", actorUserId: opts.actorUserId ?? null };
   const counts = { received: records.length, created: 0, updated: 0, unchanged: 0, deactivated: 0, skipped: 0, errors: 0 };
   const problems: string[] = [];
-  const unmapped = { locations: {} as Record<string, number>, positions: {} as Record<string, number>, departments: {} as Record<string, number> };
+  const unmapped = { legalEntities: {} as Record<string, number>, locations: {} as Record<string, number>, positions: {} as Record<string, number>, departments: {} as Record<string, number> };
   const bump = (m: Record<string, number>, k?: string) => k && (m[k] = (m[k] ?? 0) + 1);
   const futureAssignmentsFlagged: string[] = [];
   let payChanges = 0;
@@ -183,8 +189,11 @@ export async function syncPaycorEmployees(
         seen.add(r.paycorEmployeeId);
         const prev = existing.get(r.paycorEmployeeId);
 
-        const mappedFacility = r.location ? l.locationToFacility.get(r.location.toLowerCase()) : undefined;
-        if (r.location && !mappedFacility) bump(unmapped.locations, r.location);
+        const mappedFacility = (r.location ? l.locationToFacility.get(r.location.toLowerCase()) : undefined) ?? l.legalEntityToFacility.get(String(r.legalEntityId).trim());
+        if (!mappedFacility) {
+          if (r.location) bump(unmapped.locations, r.location);
+          bump(unmapped.legalEntities, String(r.legalEntityId));
+        }
         const homeFacilityId = mappedFacility ?? prev?.homeFacilityId ?? null;
         let homeDepartmentId: string | null = prev?.homeDepartmentId ?? null;
         if (r.department && homeFacilityId) {

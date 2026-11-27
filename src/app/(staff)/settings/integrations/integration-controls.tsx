@@ -19,7 +19,7 @@ export function MapValueForm({
   facilities,
   positions,
 }: {
-  sourceType: "location" | "position" | "department";
+  sourceType: "location" | "legal_entity" | "position" | "department";
   sourceValue?: string;
   facilities: { id: string; name: string; departments: { id: string; name: string }[] }[];
   positions: { id: string; name: string }[];
@@ -28,8 +28,8 @@ export function MapValueForm({
     <ActionForm action={saveMappingAction} submitLabel="Save mapping" className="space-y-3">
       <input type="hidden" name="provider" value="paycor" />
       <input type="hidden" name="sourceType" value={sourceType} />
-      {sourceValue ? <input type="hidden" name="sourceValue" value={sourceValue} /> : <TextField label={`Paycor ${sourceType} (exact text)`} name="sourceValue" required />}
-      {sourceType === "location" && (
+      {sourceValue ? <input type="hidden" name="sourceValue" value={sourceValue} /> : <TextField label={sourceType === "legal_entity" ? "Paycor legal entity ID" : `Paycor ${sourceType} (exact text)`} name="sourceValue" inputMode={sourceType === "legal_entity" ? "numeric" : undefined} required />}
+      {(sourceType === "location" || sourceType === "legal_entity") && (
         <SelectField label="Maps to facility" name="facilityId" defaultValue="" required>
           <option value="" disabled>
             Choose a facility

@@ -157,7 +157,7 @@ export async function integrationOverview(db: Db, actor: Actor) {
     paycor: { ...paycor, mode: pc.mode, redirectUri: pc.redirectUri },
     aod: { ...aod, mode: ac.mode },
     counts: { employeesImported: empCount.n, attendanceRecords: tkCount.n, unmatchedTimekeepingEmployees: unmatchedTk.n, pendingErrors: pendingErrors.length },
-    unmapped: ((latestPaycor?.details as { unmapped?: Record<string, Record<string, number>> } | null)?.unmapped ?? { locations: {}, positions: {}, departments: {} }) as Record<string, Record<string, number>>,
+    unmapped: ((latestPaycor?.details as { unmapped?: Record<string, Record<string, number>> } | null)?.unmapped ?? { legalEntities: {}, locations: {}, positions: {}, departments: {} }) as Record<string, Record<string, number>>,
     history: logs,
     pendingErrors,
   };
@@ -181,12 +181,12 @@ export async function saveMapping(
   db: Db,
   actor: Actor,
   ctx: AuditContext,
-  input: { provider: Provider; sourceType: "location" | "department" | "position"; sourceValue: string; facilityId?: string | null; departmentId?: string | null; positionId?: string | null },
+  input: { provider: Provider; sourceType: "location" | "legal_entity" | "department" | "position"; sourceValue: string; facilityId?: string | null; departmentId?: string | null; positionId?: string | null },
 ) {
   requireIntegrationAccess(actor, true);
   const sourceValue = input.sourceValue.trim();
   if (!sourceValue) throw new AppError("Enter the value exactly as it appears in the source system.");
-  if (input.sourceType === "location" && !input.facilityId) throw new AppError("Choose a facility.");
+  if ((input.sourceType === "location" || input.sourceType === "legal_entity") && !input.facilityId) throw new AppError("Choose a facility.");
   if (input.sourceType === "position" && !input.positionId) throw new AppError("Choose a job classification.");
   if (input.sourceType === "department" && !input.departmentId) throw new AppError("Choose a department.");
   if (input.sourceType === "department") {

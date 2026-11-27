@@ -207,7 +207,9 @@ async function MappingsTab({ db, actor, unmapped, manage }: { db: Awaited<Return
   const depts = facs.length ? await db.select().from(departments).where(inArray(departments.facilityId, facs.map((f) => f.id))) : [];
   const facilityOptions = facs.map((f) => ({ id: f.id, name: f.name, departments: depts.filter((d) => d.facilityId === f.id).map((d) => ({ id: d.id, name: d.name })) }));
   const posOptions = pos.map((p) => ({ id: p.id, name: p.name }));
-  const gaps = (["locations", "positions", "departments"] as const).flatMap((k) => Object.entries(unmapped[k] ?? {}).map(([value, count]) => ({ type: k.slice(0, -1) as "location" | "position" | "department", value, count })));
+  const typeOf = { legalEntities: "legal_entity", locations: "location", positions: "position", departments: "department" } as const;
+  const gaps = (["legalEntities", "locations", "positions", "departments"] as const).flatMap((k) => Object.entries(unmapped[k] ?? {}).map(([value, count]) => ({ type: typeOf[k], value, count })));
+  const typeLabel = (t: string) => (t === "legal_entity" ? "legal entity" : t);
   return (
     <div className="space-y-4">
       <Card>
@@ -221,7 +223,7 @@ async function MappingsTab({ db, actor, unmapped, manage }: { db: Awaited<Return
                 <div key={`${g.type}-${g.value}`} className="rounded-2xl border border-line p-4">
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <div>
-                      <div className="text-[12px] uppercase tracking-wide text-faint">Paycor {g.type}</div>
+                      <div className="text-[12px] uppercase tracking-wide text-faint">Paycor {typeLabel(g.type)}</div>
                       <div className="text-[15px] font-medium">“{g.value}”</div>
                     </div>
                     <Badge tone="caution">{g.count} employees</Badge>
@@ -233,6 +235,16 @@ async function MappingsTab({ db, actor, unmapped, manage }: { db: Awaited<Return
           )}
         </CardBody>
       </Card>
+      {manage && (
+        <Card>
+          <CardHeader title="Map a Paycor legal entity" description="Each legal entity (LLC) belongs to one facility. Employees whose Paycor work location doesn’t match a facility are placed by their legal entity." />
+          <CardBody>
+            <div className="max-w-md">
+              <MapValueForm sourceType="legal_entity" facilities={facilityOptions} positions={posOptions} />
+            </div>
+          </CardBody>
+        </Card>
+      )}
       <Card>
         <CardHeader title="Current mappings" description="How Paycor values translate into facilities, departments and job classifications. Values that match a name exactly don’t need a mapping." />
         <div className="pt-3">
@@ -247,9 +259,9 @@ async function MappingsTab({ db, actor, unmapped, manage }: { db: Awaited<Return
             <tbody>
               {mappings.map((m) => (
                 <tr key={m.mapping.id}>
-                  <Td className="capitalize text-ink-2">{m.mapping.sourceType}</Td>
+                  <Td className="capitalize text-ink-2">{typeLabel(m.mapping.sourceType)}</Td>
                   <Td className="font-medium">{m.mapping.sourceValue}</Td>
-                  <Td>{m.mapping.sourceType === "location" ? m.facilityName : m.mapping.sourceType === "position" ? m.positionName : `${m.departmentName} · ${m.facilityName}`}</Td>
+                  <Td>{m.mapping.sourceType === "location" || m.mapping.sourceType === "legal_entity" ? m.facilityName : m.mapping.sourceType === "position" ? m.positionName : `${m.departmentName} · ${m.facilityName}`}</Td>
                 </tr>
               ))}
             </tbody>

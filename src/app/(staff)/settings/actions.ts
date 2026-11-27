@@ -89,7 +89,7 @@ export async function saveMappingAction(_: FormState, fd: FormData): Promise<For
   const res = await runAction(async ({ db, actor, audit }) => {
     await saveMapping(db, actor, audit, {
       provider: (String(fd.get("provider") || "paycor") as Provider),
-      sourceType: String(fd.get("sourceType")) as "location" | "department" | "position",
+      sourceType: String(fd.get("sourceType")) as "location" | "legal_entity" | "department" | "position",
       sourceValue: String(fd.get("sourceValue") ?? ""),
       facilityId: String(fd.get("facilityId") || "") || null,
       departmentId: String(fd.get("departmentId") || "") || null,

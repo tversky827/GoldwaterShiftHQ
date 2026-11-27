@@ -1,7 +1,7 @@
 import { and, count, eq, sql } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { Db } from "@/db";
-import { auditLogs, employeePositions, employees, integrationSyncLogs, marketplaceListings, positions, shiftAssignments, shiftClaims } from "@/db/schema";
+import { auditLogs, employeePositions, employees, integrationFieldMappings, integrationSyncLogs, marketplaceListings, positions, shiftAssignments, shiftClaims } from "@/db/schema";
 import { DemoPaycorSource, generateDemoPaycorEmployees } from "@/server/integrations/paycor/demo";
 import { normalizeEmploymentType, syncPaycorEmployees } from "@/server/integrations/paycor/sync";
 import type { PaycorEmployeeRecord, PaycorSource } from "@/server/integrations/paycor/types";
@@ -36,6 +36,22 @@ describe("Paycor employee sync", () => {
     const r = feed.find((x) => x.department === "Environmental Services" && x.location === "Maple Grove - Dayton")!;
     const e = await byPaycor(r.paycorEmployeeId);
     expect(e.homeDepartmentId).not.toBeNull();
+  });
+
+  it("places an employee by legal entity when the Paycor location doesn't match, and reports unmapped legal entities", async () => {
+    const base = feed.find((x) => x.status === "active")!;
+    const mgr = await facilityByCode(db, "MGR");
+    await db.insert(integrationFieldMappings).values({ organizationId: orgId, provider: "paycor", sourceType: "legal_entity", sourceValue: "164922", facilityId: mgr.id });
+    const placed = { ...base, paycorEmployeeId: "LE-1", employeeNumber: "LE0001", legalEntityId: "164922", location: "Somewhere Unknown" };
+    const lost = { ...base, paycorEmployeeId: "LE-2", employeeNumber: "LE0002", legalEntityId: "999999", location: "Somewhere Unknown" };
+    const out = await run(sourceOf([...feed, placed, lost]));
+    expect(out.ok).toBe(true);
+    expect((await byPaycor("LE-1")).homeFacilityId).toBe(mgr.id);
+    expect((await byPaycor("LE-2")).homeFacilityId).toBeNull();
+    const [logRow] = await db.select().from(integrationSyncLogs).where(eq(integrationSyncLogs.id, out.syncLogId!));
+    const unmapped = (logRow.details as { unmapped: { legalEntities: Record<string, number> } }).unmapped;
+    expect(unmapped.legalEntities["999999"]).toBe(1);
+    expect(unmapped.legalEntities["164922"]).toBeUndefined();
   });
 
   it("is idempotent: re-running with identical data changes nothing", async () => {
